@@ -106,7 +106,12 @@ function vlib.receive(timeout)
     return nil
 end
 
+local _blockType = nil
+local _blockConfig = nil
+
 function vlib.register(blockType, config)
+    _blockType = blockType
+    _blockConfig = config
     vlib.send({
         type = "register",
         blockType = blockType,
@@ -119,6 +124,18 @@ function vlib.register(blockType, config)
         return true
     end
     return false
+end
+
+function vlib.heartbeat()
+    if _blockType then
+        vlib.send({
+            type = "register",
+            blockType = _blockType,
+            computerId = os.getComputerID(),
+            config = _blockConfig,
+            version = vlib.getVersion(),
+        })
+    end
 end
 
 function vlib.loadConfig(path)

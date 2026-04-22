@@ -77,6 +77,11 @@ local function handleRegister(senderId, msg)
         version = msg.version,
         lastSeen = os.epoch("utc"),
     }
+
+    if msg.config and msg.config.destination then
+        _storage.excludeInventory(msg.config.destination)
+    end
+
     rednet.send(senderId, {
         type = "config_ack",
         serverId = os.getComputerID(),

@@ -233,6 +233,7 @@ local function mainLoop()
         end
 
         drawStatus(cfg, current, status)
+        vlib.heartbeat()
         vlib.receive(cfg.interval or 10)
     end
 end

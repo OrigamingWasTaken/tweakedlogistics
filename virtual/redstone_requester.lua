@@ -218,6 +218,7 @@ end
 local function mainLoop()
     local cfg = vlib.getConfig()
     local lastResult = nil
+    local heartbeatTimer = os.startTimer(30)
 
     drawScreen(cfg, nil, false)
 
@@ -225,6 +226,11 @@ local function mainLoop()
         local event, p1, p2, p3 = os.pullEvent()
 
         vlib.checkEvent(event, p1, p2)
+
+        if event == "timer" and p1 == heartbeatTimer then
+            vlib.heartbeat()
+            heartbeatTimer = os.startTimer(30)
+        end
 
         if event == "redstone" then
             local signaled = false

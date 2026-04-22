@@ -238,6 +238,8 @@ function storage.extract(key, count, toInv)
     if extracted > 0 then
         addActivity("extract", item.displayName, extracted)
         _recentExtracts[key] = true
+        item.count = item.count - extracted
+        _core.event.emit("storage:changed", { added = {}, removed = {}, changed = {} })
     end
 
     return extracted
