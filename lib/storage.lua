@@ -265,6 +265,10 @@ function storage.getActivity()
     return _activity
 end
 
+function storage.clearActivity()
+    _activity = {}
+end
+
 function storage.getStatus()
     return {
         inventories = _inventoryCount,

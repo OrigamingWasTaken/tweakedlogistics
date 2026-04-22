@@ -336,45 +336,86 @@ local function panelProcessorStatus(mon, w, h)
     end
 end
 
-local function panelActivity(mon, w, h)
+local _trashButtons = {}
+local _confirmClear = {}
+local _confirmButtons = {}
+
+local function panelActivity(mon, w, h, monName)
     header(mon, w, " Activity", colors.cyan, colors.gray)
 
     local activity = _storage.getActivity()
-    local maxRows = h - 2
+    local maxRows = h - 3
 
     if #activity == 0 then
         text(mon, 2, 3, "No activity yet", colors.lightGray, colors.black)
-        return
+    else
+        for i = 1, math.min(#activity, maxRows) do
+            local entry = activity[i]
+            local row = i + 1
+            local bg = i % 2 == 0 and colors.gray or colors.black
+
+            local icon, iconColor
+            if entry.action == "add" then
+                icon = "+"
+                iconColor = colors.green
+            elseif entry.action == "remove" or entry.action == "extract" then
+                icon = "-"
+                iconColor = colors.red
+            else
+                icon = "?"
+                iconColor = colors.yellow
+            end
+
+            local countStr = formatCount(entry.count)
+            local nameW = w - #countStr - 5
+            local name = entry.item or "?"
+
+            local nameColor = colors.white
+            local item = nil
+            local items = _storage.getItems()
+            for _, it in ipairs(items) do
+                if it.displayName == name then
+                    item = it
+                    break
+                end
+            end
+            if item then
+                local rarity = getItemRarity(item)
+                nameColor = getRarityColor(rarity)
+                if item.customName then nameColor = colors.lightGray end
+            end
+
+            if #name > nameW then
+                name = name:sub(1, nameW - 2) .. ".."
+            end
+
+            box(mon, 1, row, w, 1, bg)
+            text(mon, 2, row, icon, iconColor, bg)
+            text(mon, 4, row, name, nameColor, bg)
+            textRight(mon, 1, row, w - 1, countStr, colors.lightBlue, bg)
+        end
     end
 
-    for i = 1, math.min(#activity, maxRows) do
-        local entry = activity[i]
-        local row = i + 1
-        local bg = i % 2 == 0 and colors.gray or colors.black
+    text(mon, w - 2, h, "[X]", colors.red, colors.black)
+    _trashButtons[monName] = { x1 = w - 2, x2 = w, y = h }
 
-        local icon, iconColor
-        if entry.action == "add" then
-            icon = "+"
-            iconColor = colors.green
-        elseif entry.action == "remove" or entry.action == "extract" then
-            icon = "-"
-            iconColor = colors.red
-        else
-            icon = "?"
-            iconColor = colors.yellow
-        end
+    if _confirmClear[monName] then
+        local mw = math.min(w - 4, 26)
+        local mh = 5
+        local mx = math.floor((w - mw) / 2) + 1
+        local my = math.floor((h - mh) / 2) + 1
 
-        local countStr = formatCount(entry.count)
-        local nameW = w - #countStr - 5
-        local name = entry.item or "?"
-        if #name > nameW then
-            name = name:sub(1, nameW - 2) .. ".."
-        end
+        box(mon, mx, my, mw, mh, colors.gray)
+        box(mon, mx, my, mw, 1, colors.red)
+        text(mon, mx + 1, my, "Clear history?", colors.white, colors.red)
 
-        box(mon, 1, row, w, 1, bg)
-        text(mon, 2, row, icon, iconColor, bg)
-        text(mon, 4, row, name, colors.white, bg)
-        textRight(mon, 1, row, w - 1, countStr, colors.lightBlue, bg)
+        text(mon, mx + 2, my + 2, "[Yes]", colors.green, colors.gray)
+        text(mon, mx + 9, my + 2, "[No]", colors.red, colors.gray)
+
+        _confirmButtons[monName] = {
+            yes = { x1 = mx + 2, x2 = mx + 6, y = my + 2 },
+            no = { x1 = mx + 9, x2 = mx + 12, y = my + 2 },
+        }
     end
 end
 
@@ -572,6 +613,27 @@ local function renderAll()
 end
 
 local function handleTouch(monName, tx, ty)
+    if _confirmClear[monName] then
+        local btns = _confirmButtons[monName]
+        if btns then
+            if btns.yes and tx >= btns.yes.x1 and tx <= btns.yes.x2 and ty == btns.yes.y then
+                _storage.clearActivity()
+                _confirmClear[monName] = nil
+                _confirmButtons[monName] = nil
+                playClick()
+                renderAll()
+                return
+            elseif btns.no and tx >= btns.no.x1 and tx <= btns.no.x2 and ty == btns.no.y then
+                _confirmClear[monName] = nil
+                _confirmButtons[monName] = nil
+                playClick()
+                renderAll()
+                return
+            end
+        end
+        return
+    end
+
     if _modalItem[monName] then
         local close = _modalClose[monName]
         if close and tx >= close.x1 and ty == close.y then
@@ -580,6 +642,14 @@ local function handleTouch(monName, tx, ty)
             playClick()
             renderAll()
         end
+        return
+    end
+
+    local trash = _trashButtons[monName]
+    if trash and tx >= trash.x1 and tx <= trash.x2 and ty == trash.y then
+        _confirmClear[monName] = true
+        playClick()
+        renderAll()
         return
     end
 
