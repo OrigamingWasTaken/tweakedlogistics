@@ -131,25 +131,47 @@ local function countItemInInventory(invName, itemName)
     return total
 end
 
+local function drawBar(w, current, target)
+    local barW = w - 4
+    local filled = target > 0 and math.floor((current / target) * barW + 0.5) or 0
+    if filled > barW then filled = barW end
+
+    local barColor
+    local pct = target > 0 and math.floor(current / target * 100) or 0
+    if pct >= 100 then barColor = colors.green
+    elseif pct >= 50 then barColor = colors.yellow
+    else barColor = colors.red end
+
+    term.setCursorPos(3, 9)
+    term.setBackgroundColor(barColor)
+    term.write(string.rep(" ", filled))
+    term.setBackgroundColor(colors.gray)
+    term.write(string.rep(" ", barW - filled))
+    term.setBackgroundColor(colors.black)
+end
+
 local function drawStatus(cfg, current, status)
     term.clear()
     term.setCursorPos(1, 1)
+
+    local w, h = term.getSize()
+    local pct = cfg.target > 0 and math.floor(current / cfg.target * 100) or 0
+    local needed = math.max(0, cfg.target - current)
+    local itemName = (cfg.item:match(":(.+)") or cfg.item):gsub("_", " ")
 
     term.setTextColor(colors.cyan)
     print("=== Virtual Restocker ===")
     print("")
 
     term.setTextColor(colors.white)
-    print("Item:        " .. (cfg.item:match(":(.+)") or cfg.item))
-    print("Target:      " .. cfg.target)
-    print("Destination: " .. cfg.destination)
+    print("Item:    " .. itemName)
+
+    local destName = (cfg.destination:match(":(.+)") or cfg.destination)
+    print("Dest:    " .. destName)
     print("")
 
-    local pct = cfg.target > 0 and math.floor(current / cfg.target * 100) or 0
-
     term.setTextColor(colors.white)
-    write("Current:     ")
-
+    write("Stock:   ")
     if current >= cfg.target then
         term.setTextColor(colors.green)
     elseif current > 0 then
@@ -157,11 +179,23 @@ local function drawStatus(cfg, current, status)
     else
         term.setTextColor(colors.red)
     end
-    print(current .. " / " .. cfg.target .. " (" .. pct .. "%)")
+    print(current .. " / " .. cfg.target .. "  " .. pct .. "%")
 
+    if needed > 0 then
+        term.setTextColor(colors.lightGray)
+        print("Need:    " .. needed .. " more")
+    else
+        term.setTextColor(colors.green)
+        print("Need:    Fully stocked!")
+    end
     print("")
+
+    drawBar(w, current, cfg.target)
+    print("")
+    print("")
+
     term.setTextColor(colors.white)
-    write("Status:      ")
+    write("Status:  ")
     if status == "ok" then
         term.setTextColor(colors.green)
         print("Stocked")
@@ -176,9 +210,8 @@ local function drawStatus(cfg, current, status)
         print("Checking...")
     end
 
-    print("")
     term.setTextColor(colors.white)
-    write("Server:      ")
+    write("Server:  ")
     if vlib.isConnected() then
         term.setTextColor(colors.green)
         print("Connected")
@@ -188,9 +221,8 @@ local function drawStatus(cfg, current, status)
     end
 
     term.setTextColor(colors.lightGray)
-    local w, h = term.getSize()
     term.setCursorPos(1, h - 1)
-    print("Checking every " .. cfg.interval .. "s")
+    print("Every " .. cfg.interval .. "s | Ctrl+T to stop")
     term.setCursorPos(1, h)
     print("Ctrl+T to stop")
 end
