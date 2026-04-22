@@ -75,12 +75,12 @@ local function enrichItem(invName, slot, basicItem)
         enriched.maxDamage = detail.maxDamage
         enriched.tags = detail.tags
 
-        if detail.displayName and detail.name then
-            local defaultName = detail.name:match(":(.+)") or detail.name
-            defaultName = defaultName:gsub("_", " ")
-            if detail.displayName:lower() ~= defaultName:lower() then
+        if basicItem.nbt and detail.displayName then
+            local baseKey = _core.itemKey(basicItem.name, nil)
+            local baseDetail = _detailCache[baseKey]
+            if baseDetail and baseDetail.displayName ~= detail.displayName then
                 enriched.customName = detail.displayName
-                enriched.baseName = detail.name
+                enriched.baseName = basicItem.name
             end
         end
     end
