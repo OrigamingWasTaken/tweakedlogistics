@@ -182,6 +182,20 @@ local function drawStatus(cfg, current, status)
     print("Ctrl+T to stop")
 end
 
+local function pullFromSources(destination, sources)
+    local total = 0
+    for _, source in ipairs(sources) do
+        local ok, moved = pcall(
+            peripheral.call, destination, "pullItems",
+            source.inv, source.slot, source.count
+        )
+        if ok and moved then
+            total = total + moved
+        end
+    end
+    return total
+end
+
 local function mainLoop()
     local cfg = vlib.getConfig()
 
@@ -195,15 +209,15 @@ local function mainLoop()
 
             local deficit = cfg.target - current
             vlib.send({
-                type = "request_items",
+                type = "locate_items",
                 item = cfg.item,
                 count = deficit,
-                destination = cfg.destination,
             })
 
             local reply = vlib.receive(5)
-            if reply and reply.type == "items_delivered" then
-                if reply.delivered >= deficit then
+            if reply and reply.type == "item_sources" and #reply.sources > 0 then
+                local pulled = pullFromSources(cfg.destination, reply.sources)
+                if pulled >= deficit then
                     status = "ok"
                 else
                     status = "short"

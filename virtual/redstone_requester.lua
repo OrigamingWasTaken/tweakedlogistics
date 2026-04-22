@@ -167,30 +167,44 @@ local function drawScreen(cfg, lastResult, waiting)
     print("Ctrl+T to stop")
 end
 
+local function pullFromSources(destination, sources)
+    local total = 0
+    for _, source in ipairs(sources) do
+        local ok, moved = pcall(
+            peripheral.call, destination, "pullItems",
+            source.inv, source.slot, source.count
+        )
+        if ok and moved then
+            total = total + moved
+        end
+    end
+    return total
+end
+
 local function doRequest(cfg)
     local allOk = true
     local messages = {}
 
     for _, slot in ipairs(cfg.slots) do
         vlib.send({
-            type = "request_items",
+            type = "locate_items",
             item = slot.name,
             count = slot.count,
-            destination = cfg.destination,
         })
 
         local reply = vlib.receive(5)
-        if reply and reply.type == "items_delivered" then
+        if reply and reply.type == "item_sources" and #reply.sources > 0 then
+            local pulled = pullFromSources(cfg.destination, reply.sources)
             local name = slot.name:match(":(.+)") or slot.name
-            if reply.delivered >= slot.count then
-                table.insert(messages, name .. ": " .. reply.delivered .. " OK")
+            if pulled >= slot.count then
+                table.insert(messages, name .. ": " .. pulled .. " OK")
             else
-                table.insert(messages, name .. ": " .. reply.delivered .. "/" .. slot.count)
+                table.insert(messages, name .. ": " .. pulled .. "/" .. slot.count)
                 allOk = false
             end
         else
             local name = slot.name:match(":(.+)") or slot.name
-            table.insert(messages, name .. ": no response")
+            table.insert(messages, name .. ": not available")
             allOk = false
         end
     end
