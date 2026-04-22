@@ -214,8 +214,8 @@ local function mainLoop()
                 count = deficit,
             })
 
-            local reply = vlib.receive(5)
-            if reply and reply.type == "item_sources" and #reply.sources > 0 then
+            local reply = vlib.receiveType("item_sources", 5)
+            if reply and #reply.sources > 0 then
                 local pulled = pullFromSources(cfg.destination, reply.sources)
                 if pulled >= deficit then
                     status = "ok"
@@ -234,7 +234,15 @@ local function mainLoop()
 
         drawStatus(cfg, current, status)
         vlib.heartbeat()
-        vlib.receive(cfg.interval or 10)
+
+        local waitTimer = os.startTimer(cfg.interval or 10)
+        while true do
+            local event, p1, p2 = os.pullEvent()
+            if event == "timer" and p1 == waitTimer then
+                break
+            end
+            vlib.checkEvent(event, p1, p2)
+        end
     end
 end
 

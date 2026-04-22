@@ -192,8 +192,8 @@ local function doRequest(cfg)
             count = slot.count,
         })
 
-        local reply = vlib.receive(5)
-        if reply and reply.type == "item_sources" and #reply.sources > 0 then
+        local reply = vlib.receiveType("item_sources", 5)
+        if reply and #reply.sources > 0 then
             local pulled = pullFromSources(cfg.destination, reply.sources)
             local name = slot.name:match(":(.+)") or slot.name
             if pulled >= slot.count then

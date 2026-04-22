@@ -106,6 +106,19 @@ function vlib.receive(timeout)
     return nil
 end
 
+function vlib.receiveType(msgType, timeout)
+    local deadline = os.epoch("utc") + (timeout or 5) * 1000
+    while os.epoch("utc") < deadline do
+        local remaining = (deadline - os.epoch("utc")) / 1000
+        if remaining <= 0 then break end
+        local msg = vlib.receive(remaining)
+        if msg and msg.type == msgType then
+            return msg
+        end
+    end
+    return nil
+end
+
 local _blockType = nil
 local _blockConfig = nil
 
