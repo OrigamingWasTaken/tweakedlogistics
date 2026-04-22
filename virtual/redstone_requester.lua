@@ -222,7 +222,9 @@ local function mainLoop()
     drawScreen(cfg, nil, false)
 
     while true do
-        local event, p1 = os.pullEvent()
+        local event, p1, p2, p3 = os.pullEvent()
+
+        vlib.checkEvent(event, p1, p2)
 
         if event == "redstone" then
             local signaled = false

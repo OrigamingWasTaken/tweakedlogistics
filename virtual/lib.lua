@@ -69,6 +69,14 @@ local function handleUpdate()
     os.reboot()
 end
 
+function vlib.checkEvent(event, senderId, message)
+    if event == "rednet_message" and senderId == _serverId and type(message) == "table" then
+        if message.type == "do_update" then
+            handleUpdate()
+        end
+    end
+end
+
 function vlib.receive(timeout)
     local senderId, message = rednet.receive(nil, timeout)
     if senderId and senderId == _serverId and type(message) == "table" then
