@@ -203,6 +203,8 @@ local function panelStockOverview(mon, w, h, monName)
     end
 end
 
+local _server = nil
+
 local TYPE_COLORS = {
     virtual_restocker = colors.blue,
     virtual_redstone_requester = colors.orange,
@@ -623,8 +625,6 @@ local function playClick()
 end
 
 -- Init and loop --
-
-local _server = nil
 
 function dashboard.init(core, storage, logistics, crafting, server, config)
     _core = core
