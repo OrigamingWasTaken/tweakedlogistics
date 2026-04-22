@@ -200,10 +200,13 @@ function vlib.isConnected()
 end
 
 function vlib.playAlarm()
-    if not _alarmActive or not _speaker then return end
-    pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.0, 0.5)
-    sleep(0.5)
-    pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.0, 0.7)
+    if not _connected and _speaker then
+        pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.5, 0.5)
+        sleep(0.3)
+        pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.5, 0.7)
+        sleep(0.3)
+        pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.5, 0.5)
+    end
 end
 
 function vlib.loadConfig(path)
