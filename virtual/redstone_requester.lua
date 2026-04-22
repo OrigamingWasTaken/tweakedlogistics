@@ -247,5 +247,5 @@ local function mainLoop()
 end
 
 if setup() then
-    mainLoop()
+    parallel.waitForAny(mainLoop, vlib.updateListener)
 end

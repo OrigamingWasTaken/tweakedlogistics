@@ -3,6 +3,7 @@ local repo = "https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogisti
 local components = {
     {
         name = "Server (central hub)",
+        variant = "server",
         files = {
             { remote = "lib/core.lua", path = "/tweakedlogistics/lib/core.lua" },
             { remote = "lib/storage.lua", path = "/tweakedlogistics/lib/storage.lua" },
@@ -20,6 +21,7 @@ local components = {
     },
     {
         name = "Crafting Turtle",
+        variant = "turtle",
         files = {
             { remote = "turtle_helper.lua", path = "/startup.lua" },
         },
@@ -28,6 +30,7 @@ local components = {
     },
     {
         name = "Virtual Restocker",
+        variant = "restocker",
         files = {
             { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
             { remote = "virtual/restocker.lua", path = "/startup.lua" },
@@ -37,6 +40,7 @@ local components = {
     },
     {
         name = "Virtual Redstone Requester",
+        variant = "requester",
         files = {
             { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
             { remote = "virtual/redstone_requester.lua", path = "/startup.lua" },
@@ -46,30 +50,48 @@ local components = {
     },
 }
 
-term.clear()
-term.setCursorPos(1, 1)
-term.setTextColor(colors.cyan)
-print("=== TweakedLogistics Installer ===")
-term.setTextColor(colors.white)
-print("")
+local comp = nil
 
-for i, comp in ipairs(components) do
-    print("  " .. i .. ". " .. comp.name)
+if fs.exists("/tweakedlogistics/.variant") then
+    local h = fs.open("/tweakedlogistics/.variant", "r")
+    if h then
+        local savedVariant = h.readAll()
+        h.close()
+        for _, c in ipairs(components) do
+            if c.variant == savedVariant then
+                comp = c
+                break
+            end
+        end
+    end
 end
 
-print("")
-term.setTextColor(colors.yellow)
-write("Choose component (1-" .. #components .. "): ")
-term.setTextColor(colors.white)
-local choice = tonumber(read())
+if not comp then
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setTextColor(colors.cyan)
+    print("=== TweakedLogistics Installer ===")
+    term.setTextColor(colors.white)
+    print("")
 
-if not choice or choice < 1 or choice > #components then
-    term.setTextColor(colors.red)
-    print("Invalid choice.")
-    return
+    for i, c in ipairs(components) do
+        print("  " .. i .. ". " .. c.name)
+    end
+
+    print("")
+    term.setTextColor(colors.yellow)
+    write("Choose component (1-" .. #components .. "): ")
+    term.setTextColor(colors.white)
+    local choice = tonumber(read())
+
+    if not choice or choice < 1 or choice > #components then
+        term.setTextColor(colors.red)
+        print("Invalid choice.")
+        return
+    end
+
+    comp = components[choice]
 end
-
-local comp = components[choice]
 print("")
 term.setTextColor(colors.cyan)
 print("Installing: " .. comp.name)
@@ -99,6 +121,13 @@ for _, f in ipairs(comp.files) do
         print("    Failed to download!")
         term.setTextColor(colors.white)
     end
+end
+
+fs.makeDir("/tweakedlogistics")
+local vh = fs.open("/tweakedlogistics/.variant", "w")
+if vh then
+    vh.write(comp.variant)
+    vh.close()
 end
 
 local versionResp = http.get("https://api.github.com/repos/OrigamingWasTaken/tweakedlogistics/commits/main")

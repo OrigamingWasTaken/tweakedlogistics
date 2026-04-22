@@ -356,8 +356,18 @@ local function cmdUpdate()
         return
     end
 
+    if _server then
+        local clients = _server.getClients()
+        if #clients > 0 then
+            print("")
+            print("Updating " .. #clients .. " connected client(s)...")
+            local count = _server.broadcastUpdate()
+            printColor("Sent update command to " .. count .. " client(s)", colors.green)
+        end
+    end
+
     print("")
-    print("Downloading installer...")
+    print("Updating server...")
     local dlResp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
     if not dlResp then
         printColor("Failed to download installer.", colors.red)
@@ -371,6 +381,8 @@ local function cmdUpdate()
         return
     end
     fn()
+    print("")
+    printColor("Reboot to apply update.", colors.yellow)
 end
 
 local function parseCommand(line)

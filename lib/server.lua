@@ -201,6 +201,17 @@ local function handleMessage(senderId, msg)
     end
 end
 
+function server.broadcastUpdate()
+    local count = 0
+    for clientId, _ in pairs(_clients) do
+        rednet.send(clientId, {
+            type = "do_update",
+        }, PROTOCOL)
+        count = count + 1
+    end
+    return count
+end
+
 function server.getClients()
     local list = {}
     for id, client in pairs(_clients) do
