@@ -12,6 +12,7 @@ local _totalSlots = 0
 local _usedSlots = 0
 local _lastScanMs = 0
 local _excludedInvs = {}
+local _recentExtracts = {}
 
 function storage.init(core, config)
     _core = core
@@ -191,8 +192,16 @@ function storage.scan()
         addActivity("add", entry.displayName, entry.count)
     end
     for _, entry in ipairs(delta.removed) do
-        addActivity("remove", entry.displayName, entry.count)
+        if not _recentExtracts[entry.key] then
+            addActivity("remove", entry.displayName, entry.count)
+        end
     end
+    for _, entry in ipairs(delta.changed) do
+        if _recentExtracts[entry.key] then
+            _recentExtracts[entry.key] = nil
+        end
+    end
+    _recentExtracts = {}
 
     _lastScanMs = os.epoch("utc") - startTime
 
@@ -228,6 +237,7 @@ function storage.extract(key, count, toInv)
 
     if extracted > 0 then
         addActivity("extract", item.displayName, extracted)
+        _recentExtracts[key] = true
     end
 
     return extracted

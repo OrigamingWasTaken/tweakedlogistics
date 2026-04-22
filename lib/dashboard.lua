@@ -212,7 +212,7 @@ local function panelRuleStatus(mon, w, h)
     end
 
     local rules = _logistics.getRules()
-    local rowsPerRule = 3
+    local rowsPerRule = 4
     local maxRules = math.floor((h - 2) / rowsPerRule)
 
     if #rules == 0 then
@@ -247,12 +247,17 @@ local function panelRuleStatus(mon, w, h)
         end
         text(mon, 4, baseRow, displayName, statusColor, bg)
 
+        local dest = rule.destination or "?"
+        dest = dest:match(":(.+)") or dest
+        if #dest > w - 6 then dest = dest:sub(1, w - 8) .. ".." end
+        text(mon, 4, baseRow + 1, "> " .. dest, colors.lightGray, bg)
+
         local countStr = formatCount(rule.current) .. " / " .. formatCount(rule.target)
-        text(mon, 4, baseRow + 1, countStr, colors.white, bg)
+        text(mon, 4, baseRow + 2, countStr, colors.white, bg)
 
         local barW = w - 4
         local barColor = statusColor
-        progressBar(mon, 2, baseRow + 2, barW, rule.current, rule.target, barColor, colors.lightGray)
+        progressBar(mon, 2, baseRow + 3, barW, rule.current, rule.target, barColor, colors.lightGray)
     end
 end
 

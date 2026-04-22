@@ -61,6 +61,12 @@ function vlib.send(msg)
 end
 
 local function handleUpdate()
+    if _speaker then
+        pcall(_speaker.playSound, "minecraft:block.note_block.chime", 1.0, 1.5)
+        sleep(0.3)
+        pcall(_speaker.playSound, "minecraft:block.note_block.chime", 1.0, 2.0)
+    end
+
     term.clear()
     term.setCursorPos(1, 1)
     term.setTextColor(colors.yellow)
@@ -75,8 +81,9 @@ local function handleUpdate()
         if fn then fn() end
     end
 
-    print("Rebooting...")
-    sleep(1)
+    print("Rebooting in 5s...")
+    print("(waiting for server to finish)")
+    sleep(5)
     os.reboot()
 end
 
@@ -171,7 +178,21 @@ function vlib.setupScreen(blockName)
     end
 
     print("Searching for server...")
-    local id = vlib.discoverServer(3)
+    local id = nil
+    if _serverId then
+        id = _serverId
+        print("Using saved server #" .. id)
+    else
+        for attempt = 1, 10 do
+            id = vlib.discoverServer(3)
+            if id then break end
+            if attempt < 10 then
+                print("Retry " .. attempt .. "/10...")
+                sleep(2)
+            end
+        end
+    end
+
     if not id then
         print("Server not found automatically.")
         term.setTextColor(colors.yellow)
