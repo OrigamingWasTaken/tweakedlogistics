@@ -122,60 +122,6 @@ local function cmdStatus()
     end
 end
 
-local function cmdRules()
-    local rules = _logistics.getRules()
-    if #rules == 0 then
-        print("No rules defined.")
-        return
-    end
-    printColor(string.format("%-4s %-20s %-8s %-8s %s", "ID", "Item", "Target", "Current", "Status"), colors.yellow)
-    for _, rule in ipairs(rules) do
-        local name = rule.item:match(":(.+)") or rule.item
-        local statusColor = colors.white
-        if rule.status == "fulfilled" then statusColor = colors.green
-        elseif rule.status == "short" then statusColor = colors.red end
-        term.setTextColor(colors.white)
-        write(string.format("%-4s %-20s %-8s %-8s ", rule.id, name:sub(1, 20), tostring(rule.target), tostring(rule.current)))
-        printColor(rule.status, statusColor)
-    end
-end
-
-local function cmdAddRule()
-    printColor("Add Stock Rule", colors.cyan)
-    write("Item name (e.g. minecraft:iron_ingot): ")
-    local item = read()
-    if not item or item == "" then return end
-
-    write("Target count: ")
-    local target = tonumber(read())
-    if not target then print("Invalid number.") return end
-
-    write("Destination inventory: ")
-    local dest = read()
-    if not dest or dest == "" then return end
-
-    write("Priority (0-10, default 0): ")
-    local prio = tonumber(read()) or 0
-
-    local id = _logistics.addRule({
-        item = item,
-        target = target,
-        destination = dest,
-        priority = prio,
-    })
-    printColor("Rule added: #" .. id, colors.green)
-end
-
-local function cmdRemoveRule(id)
-    if not id then
-        write("Rule ID: ")
-        id = read()
-    end
-    if not id or id == "" then return end
-    _logistics.removeRule(id)
-    printColor("Rule removed: #" .. id, colors.green)
-end
-
 local function cmdProcessors()
     local procs = _crafting.getProcessors()
     if #procs == 0 then
