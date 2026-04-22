@@ -7,6 +7,17 @@ local _modemSide = nil
 local _serverId = nil
 local _configPath = nil
 local _config = {}
+local _speaker = nil
+
+local SOUNDS = {
+    click = { name = "minecraft:ui.button.click", volume = 0.5, pitch = 1.0 },
+    success = { name = "minecraft:entity.experience_orb.pickup", volume = 0.8, pitch = 1.2 },
+    error = { name = "minecraft:block.note_block.bass", volume = 0.8, pitch = 0.5 },
+    alert = { name = "minecraft:block.note_block.bell", volume = 1.0, pitch = 1.0 },
+    item_added = { name = "minecraft:entity.item.pickup", volume = 0.6, pitch = 1.0 },
+    item_removed = { name = "minecraft:entity.item.pickup", volume = 0.6, pitch = 0.7 },
+    update = { name = "minecraft:block.note_block.chime", volume = 1.0, pitch = 1.5 },
+}
 
 function vlib.findModem()
     for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
@@ -94,6 +105,7 @@ function vlib.register(blockType, config)
         blockType = blockType,
         computerId = os.getComputerID(),
         config = config,
+        version = vlib.getVersion(),
     })
     local reply = vlib.receive(5)
     if reply and reply.type == "config_ack" then
@@ -176,8 +188,58 @@ function vlib.setupScreen(blockName)
     end
 
     print("Connected to server #" .. _serverId)
+
+    vlib.findSpeaker()
+    if _speaker then
+        print("Speaker detected")
+    end
+
     vlib.saveConfig()
     return true
+end
+
+-- Speaker --
+
+function vlib.findSpeaker()
+    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+        if peripheral.hasType(side, "speaker") then
+            _speaker = peripheral.wrap(side)
+            return _speaker
+        end
+    end
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "speaker") then
+            _speaker = peripheral.wrap(name)
+            return _speaker
+        end
+    end
+    return nil
+end
+
+function vlib.playSound(soundKey)
+    if not _speaker then return end
+    local s = SOUNDS[soundKey]
+    if not s then return end
+    pcall(_speaker.playSound, s.name, s.volume, s.pitch)
+end
+
+function vlib.hasSpeaker()
+    return _speaker ~= nil
+end
+
+-- Version --
+
+function vlib.getVersion()
+    if fs.exists("/tweakedlogistics/.version") then
+        local h = fs.open("/tweakedlogistics/.version", "r")
+        if h then
+            local v = h.readAll()
+            h.close()
+            return v
+        end
+    end
+    return nil
 end
 
 return vlib

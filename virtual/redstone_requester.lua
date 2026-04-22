@@ -235,14 +235,18 @@ local function mainLoop()
                 end
             end
             if signaled then
+                vlib.playSound("click")
                 drawScreen(cfg, nil, true)
                 lastResult = doRequest(cfg)
+                vlib.playSound(lastResult.allOk and "success" or "error")
                 drawScreen(cfg, lastResult, false)
             end
 
         elseif event == "key" and p1 == keys.enter then
+            vlib.playSound("click")
             drawScreen(cfg, nil, true)
             lastResult = doRequest(cfg)
+            vlib.playSound(lastResult.allOk and "success" or "error")
             drawScreen(cfg, lastResult, false)
         end
     end

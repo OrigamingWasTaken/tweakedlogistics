@@ -287,9 +287,30 @@ local function cmdClients()
         print("No connected clients.")
         return
     end
-    printColor(string.format("%-6s %-20s", "ID", "Type"), colors.yellow)
+
+    local serverVersion = nil
+    if fs.exists("/tweakedlogistics/.version") then
+        local h = fs.open("/tweakedlogistics/.version", "r")
+        if h then
+            serverVersion = h.readAll()
+            h.close()
+        end
+    end
+
+    printColor(string.format("%-6s %-20s %s", "ID", "Type", "Version"), colors.yellow)
     for _, client in ipairs(clients) do
-        print(string.format("%-6d %-20s", client.id, client.blockType or "unknown"))
+        local ver = client.version and client.version:sub(1, 7) or "?"
+        local mismatch = ""
+        if serverVersion and client.version and client.version ~= serverVersion then
+            mismatch = " MISMATCH"
+        end
+        term.setTextColor(colors.white)
+        write(string.format("%-6d %-20s %s", client.id, client.blockType or "unknown", ver))
+        if mismatch ~= "" then
+            printColor(mismatch, colors.red)
+        else
+            print("")
+        end
     end
 end
 

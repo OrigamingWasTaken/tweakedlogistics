@@ -219,11 +219,14 @@ local function mainLoop()
                 local pulled = pullFromSources(cfg.destination, reply.sources)
                 if pulled >= deficit then
                     status = "ok"
+                    vlib.playSound("success")
                 else
                     status = "short"
+                    vlib.playSound("alert")
                 end
             else
                 status = "short"
+                vlib.playSound("error")
             end
 
             current = countItemInInventory(cfg.destination, cfg.item)

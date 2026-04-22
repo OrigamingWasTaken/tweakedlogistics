@@ -48,6 +48,16 @@ local components = {
         dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
         postInstall = "Reboot to begin setup.",
     },
+    {
+        name = "Virtual Speaker",
+        variant = "speaker",
+        files = {
+            { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
+            { remote = "virtual/speaker.lua", path = "/startup.lua" },
+        },
+        dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
+        postInstall = "Reboot to begin setup. Requires a speaker peripheral.",
+    },
 }
 
 local comp = nil

@@ -74,6 +74,7 @@ local function handleRegister(senderId, msg)
         blockType = msg.blockType,
         computerId = msg.computerId,
         config = msg.config,
+        version = msg.version,
         lastSeen = os.epoch("utc"),
     }
     rednet.send(senderId, {
@@ -218,6 +219,7 @@ function server.getClients()
         table.insert(list, {
             id = id,
             blockType = client.blockType,
+            version = client.version,
             lastSeen = client.lastSeen,
         })
     end
