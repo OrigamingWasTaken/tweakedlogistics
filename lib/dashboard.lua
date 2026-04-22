@@ -76,7 +76,102 @@ local function formatCount(n)
     return tostring(n)
 end
 
+-- Rarity --
+
+local EPIC_ITEMS = {
+    ["minecraft:mace"] = true,
+    ["minecraft:dragon_egg"] = true,
+    ["minecraft:end_crystal"] = true,
+    ["minecraft:command_block"] = true,
+    ["minecraft:chain_command_block"] = true,
+    ["minecraft:repeating_command_block"] = true,
+}
+
+local UNCOMMON_ITEMS = {
+    ["minecraft:golden_apple"] = true,
+    ["minecraft:experience_bottle"] = true,
+    ["minecraft:dragon_breath"] = true,
+    ["minecraft:nautilus_shell"] = true,
+    ["minecraft:heart_of_the_sea"] = true,
+    ["minecraft:music_disc_13"] = true,
+    ["minecraft:music_disc_cat"] = true,
+    ["minecraft:music_disc_blocks"] = true,
+    ["minecraft:music_disc_chirp"] = true,
+    ["minecraft:music_disc_far"] = true,
+    ["minecraft:music_disc_mall"] = true,
+    ["minecraft:music_disc_mellohi"] = true,
+    ["minecraft:music_disc_stal"] = true,
+    ["minecraft:music_disc_strad"] = true,
+    ["minecraft:music_disc_ward"] = true,
+    ["minecraft:music_disc_11"] = true,
+    ["minecraft:music_disc_wait"] = true,
+    ["minecraft:music_disc_pigstep"] = true,
+    ["minecraft:music_disc_otherside"] = true,
+    ["minecraft:music_disc_5"] = true,
+    ["minecraft:music_disc_relic"] = true,
+}
+
+local RARE_ITEMS = {
+    ["minecraft:nether_star"] = true,
+    ["minecraft:elytra"] = true,
+    ["minecraft:trident"] = true,
+    ["minecraft:totem_of_undying"] = true,
+    ["minecraft:enchanted_golden_apple"] = true,
+}
+
+local function getItemRarity(item)
+    if EPIC_ITEMS[item.name] then return "epic" end
+    if RARE_ITEMS[item.name] then return "rare" end
+
+    local baseRarity = "common"
+    if UNCOMMON_ITEMS[item.name] then baseRarity = "uncommon" end
+
+    if item.enchantments and #item.enchantments > 0 then
+        if baseRarity == "common" or baseRarity == "uncommon" then
+            return "rare"
+        end
+    end
+
+    return baseRarity
+end
+
+local function getRarityColor(rarity)
+    if rarity == "epic" then return colors.purple end
+    if rarity == "rare" then return colors.cyan end
+    if rarity == "uncommon" then return colors.yellow end
+    return colors.white
+end
+
 -- Panels --
+
+local function drawItemName(mon, x, y, w, item, bg)
+    local rarity = getItemRarity(item)
+    local nameColor = getRarityColor(rarity)
+    local isRenamed = item.customName ~= nil
+
+    if isRenamed then
+        nameColor = colors.lightGray
+    end
+
+    local name = item.displayName
+    local suffix = ""
+    if isRenamed and item.baseName then
+        local realName = item.baseName:match(":(.+)") or item.baseName
+        realName = realName:gsub("_", " ")
+        suffix = " (" .. realName .. ")"
+    end
+
+    local maxNameLen = w - #suffix
+    if #name > maxNameLen then
+        name = name:sub(1, maxNameLen - 2) .. ".."
+        suffix = ""
+    end
+
+    text(mon, x, y, name, nameColor, bg)
+    if #suffix > 0 then
+        text(mon, x + #name, y, suffix, colors.lightGray, bg)
+    end
+end
 
 local function panelStockOverview(mon, w, h)
     header(mon, w, " Stock Overview", colors.blue, colors.gray)
@@ -96,13 +191,9 @@ local function panelStockOverview(mon, w, h)
 
         local countStr = formatCount(item.count)
         local nameW = w - #countStr - 4
-        local name = item.displayName
-        if #name > nameW then
-            name = name:sub(1, nameW - 2) .. ".."
-        end
 
         box(mon, 1, row, w, 1, bg)
-        text(mon, 2, row, name, colors.white, bg)
+        drawItemName(mon, 2, row, nameW, item, bg)
         textRight(mon, 1, row, w - 1, countStr, colors.cyan, bg)
     end
 end

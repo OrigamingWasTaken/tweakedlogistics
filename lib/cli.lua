@@ -55,6 +55,35 @@ local function printHelp()
     print("  exit               - Return to main loop")
 end
 
+local EPIC_ITEMS = {
+    ["minecraft:mace"] = true,
+    ["minecraft:dragon_egg"] = true,
+    ["minecraft:end_crystal"] = true,
+}
+
+local RARE_ITEMS = {
+    ["minecraft:nether_star"] = true,
+    ["minecraft:elytra"] = true,
+    ["minecraft:trident"] = true,
+    ["minecraft:totem_of_undying"] = true,
+    ["minecraft:enchanted_golden_apple"] = true,
+}
+
+local UNCOMMON_ITEMS = {
+    ["minecraft:golden_apple"] = true,
+    ["minecraft:experience_bottle"] = true,
+    ["minecraft:dragon_breath"] = true,
+}
+
+local function getItemColor(item)
+    if EPIC_ITEMS[item.name] then return colors.purple end
+    if RARE_ITEMS[item.name] then return colors.cyan end
+    if item.enchantments and #item.enchantments > 0 then return colors.cyan end
+    if UNCOMMON_ITEMS[item.name] then return colors.yellow end
+    if item.customName then return colors.lightGray end
+    return colors.white
+end
+
 local function cmdStock()
     local items = _storage.getItems()
     if #items == 0 then
@@ -63,8 +92,19 @@ local function cmdStock()
     end
     printColor(string.format("%-30s %s", "Item", "Count"), colors.yellow)
     for _, item in ipairs(items) do
-        local display = _nicknames and _nicknames.getDisplay(item.displayName) or item.displayName
-        print(string.format("%-30s %d", display:sub(1, 30), item.count))
+        local nameColor = getItemColor(item)
+        local name = item.displayName
+        local suffix = ""
+        if item.customName and item.baseName then
+            local realName = item.baseName:match(":(.+)") or item.baseName
+            suffix = " (" .. realName:gsub("_", " ") .. ")"
+        end
+
+        local display = name:sub(1, 30 - #suffix) .. suffix
+        term.setTextColor(nameColor)
+        write(string.format("%-30s ", display:sub(1, 30)))
+        term.setTextColor(colors.white)
+        print(tostring(item.count))
     end
     print("")
     print(#items .. " item types")

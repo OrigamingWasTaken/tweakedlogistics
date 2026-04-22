@@ -74,6 +74,15 @@ local function enrichItem(invName, slot, basicItem)
         enriched.damage = detail.damage
         enriched.maxDamage = detail.maxDamage
         enriched.tags = detail.tags
+
+        if detail.displayName and detail.name then
+            local defaultName = detail.name:match(":(.+)") or detail.name
+            defaultName = defaultName:gsub("_", " ")
+            if detail.displayName:lower() ~= defaultName:lower() then
+                enriched.customName = detail.displayName
+                enriched.baseName = detail.name
+            end
+        end
     end
 
     _detailCache[key] = enriched
@@ -147,6 +156,8 @@ function storage.scan()
                         count = 0,
                         nbt = basicItem.nbt,
                         enchantments = detail.enchantments,
+                        customName = detail.customName,
+                        baseName = detail.baseName,
                         damage = detail.damage,
                         maxDamage = detail.maxDamage,
                         tags = detail.tags,
