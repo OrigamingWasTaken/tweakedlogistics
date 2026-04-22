@@ -1,0 +1,188 @@
+local server = {}
+
+local PROTOCOL = "tweakedlogistics"
+local HOST = "tweakedlogistics_server"
+
+local _core = nil
+local _storage = nil
+local _logistics = nil
+local _crafting = nil
+local _nicknames = nil
+local _config = nil
+local _clients = {}
+local _modemSide = nil
+
+function server.init(core, storage, logistics, crafting, nicknames, config)
+    _core = core
+    _storage = storage
+    _logistics = logistics
+    _crafting = crafting
+    _nicknames = nicknames
+    _config = config
+
+    _core.event.on("storage:changed", function(delta)
+        server.broadcastStockUpdate()
+    end)
+end
+
+local function findModem()
+    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+        if peripheral.hasType(side, "modem") then
+            return side
+        end
+    end
+    return nil
+end
+
+function server.broadcastStockUpdate()
+    local items = _storage.getItems()
+    local compact = {}
+    for _, item in ipairs(items) do
+        table.insert(compact, {
+            name = item.name,
+            displayName = item.displayName,
+            count = item.count,
+            nbt = item.nbt,
+        })
+    end
+    for clientId, _ in pairs(_clients) do
+        rednet.send(clientId, {
+            type = "stock_update",
+            items = compact,
+        }, PROTOCOL)
+    end
+end
+
+local function handleRegister(senderId, msg)
+    _clients[senderId] = {
+        blockType = msg.blockType,
+        computerId = msg.computerId,
+        config = msg.config,
+        lastSeen = os.epoch("utc"),
+    }
+    rednet.send(senderId, {
+        type = "config_ack",
+        serverId = os.getComputerID(),
+    }, PROTOCOL)
+end
+
+local function handleHeartbeat(senderId, msg)
+    if _clients[senderId] then
+        _clients[senderId].lastSeen = os.epoch("utc")
+    end
+end
+
+local function handleQueryStock(senderId, msg)
+    local items = _storage.getItems()
+    local result = {}
+    for _, item in ipairs(items) do
+        local include = true
+        if msg.filter then
+            if not item.name:find(msg.filter, 1, true) and
+               not item.displayName:lower():find(msg.filter:lower(), 1, true) then
+                include = false
+            end
+        end
+        if include then
+            table.insert(result, {
+                name = item.name,
+                displayName = item.displayName,
+                count = item.count,
+                nbt = item.nbt,
+            })
+        end
+    end
+    rednet.send(senderId, {
+        type = "stock_update",
+        items = result,
+    }, PROTOCOL)
+end
+
+local function handleRequestItems(senderId, msg)
+    local itemName = msg.item
+    local count = msg.count or 1
+    local destination = msg.destination
+
+    local items = _storage.getItems()
+    local key = nil
+    for _, item in ipairs(items) do
+        if item.name == itemName then
+            key = item.key
+            break
+        end
+    end
+
+    local delivered = 0
+    if key then
+        delivered = _storage.extract(key, count, destination)
+    end
+
+    rednet.send(senderId, {
+        type = "items_delivered",
+        item = itemName,
+        requested = count,
+        delivered = delivered,
+    }, PROTOCOL)
+end
+
+local function handleCraftRequest(senderId, msg)
+    local itemName = msg.item
+    local count = msg.count or 1
+
+    local jobId = _crafting.requestCraft(itemName, count)
+
+    rednet.send(senderId, {
+        type = "craft_status",
+        jobId = jobId,
+        status = "queued",
+    }, PROTOCOL)
+end
+
+local function handleMessage(senderId, msg)
+    if type(msg) ~= "table" or not msg.type then return end
+
+    if msg.type == "register" then
+        handleRegister(senderId, msg)
+    elseif msg.type == "heartbeat" then
+        handleHeartbeat(senderId, msg)
+    elseif msg.type == "query_stock" then
+        handleQueryStock(senderId, msg)
+    elseif msg.type == "request_items" then
+        handleRequestItems(senderId, msg)
+    elseif msg.type == "craft_request" then
+        handleCraftRequest(senderId, msg)
+    end
+end
+
+function server.getClients()
+    local list = {}
+    for id, client in pairs(_clients) do
+        table.insert(list, {
+            id = id,
+            blockType = client.blockType,
+            lastSeen = client.lastSeen,
+        })
+    end
+    return list
+end
+
+function server.loop()
+    _modemSide = findModem()
+    if not _modemSide then
+        print("[server] No modem found, server disabled")
+        return
+    end
+
+    rednet.open(_modemSide)
+    rednet.host(PROTOCOL, HOST)
+    print("[server] Hosting on protocol '" .. PROTOCOL .. "'")
+
+    while true do
+        local senderId, message, protocol = rednet.receive(PROTOCOL)
+        if senderId then
+            handleMessage(senderId, message)
+        end
+    end
+end
+
+return server
