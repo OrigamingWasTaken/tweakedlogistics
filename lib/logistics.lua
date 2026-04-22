@@ -39,6 +39,40 @@ local function saveRules()
     _config.set("logistics.rules", list)
 end
 
+local function countItemInInventory(invName, itemName)
+    local total = 0
+    local ok, contents = pcall(peripheral.call, invName, "list")
+    if not ok or not contents then return -1 end
+    for _, slot in pairs(contents) do
+        if slot.name == itemName then
+            total = total + slot.count
+        end
+    end
+    return total
+end
+
+local function findItemKey(itemName)
+    local items = _storage.getItems()
+    for _, item in ipairs(items) do
+        if item.name == itemName then
+            return item.key
+        end
+    end
+    if not itemName:find(":") then
+        for _, item in ipairs(items) do
+            if item.name == "minecraft:" .. itemName then
+                return item.key
+            end
+        end
+        for _, item in ipairs(items) do
+            if item.name:match(":(.+)") == itemName then
+                return item.key
+            end
+        end
+    end
+    return nil
+end
+
 function logistics.addRule(rule)
     _ruleCounter = _ruleCounter + 1
     local id = tostring(_ruleCounter)
@@ -104,40 +138,6 @@ function logistics.request(itemName, count, toInv)
     local extracted = _storage.extract(targetKey, count, toInv)
     _core.event.emit("logistics:request_complete", id, itemName, extracted, count)
     return id, extracted
-end
-
-local function countItemInInventory(invName, itemName)
-    local total = 0
-    local ok, contents = pcall(peripheral.call, invName, "list")
-    if not ok or not contents then return -1 end
-    for _, slot in pairs(contents) do
-        if slot.name == itemName then
-            total = total + slot.count
-        end
-    end
-    return total
-end
-
-local function findItemKey(itemName)
-    local items = _storage.getItems()
-    for _, item in ipairs(items) do
-        if item.name == itemName then
-            return item.key
-        end
-    end
-    if not itemName:find(":") then
-        for _, item in ipairs(items) do
-            if item.name == "minecraft:" .. itemName then
-                return item.key
-            end
-        end
-        for _, item in ipairs(items) do
-            if item.name:match(":(.+)") == itemName then
-                return item.key
-            end
-        end
-    end
-    return nil
 end
 
 local function fulfillRules()
