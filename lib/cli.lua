@@ -25,26 +25,11 @@ local function printColor(text, color)
 end
 
 local function printHelp()
-    term.setTextColor(colors.yellow)
-    write("Storage:    ")
-    term.setTextColor(colors.white)
-    print("stock, status, scan")
-    term.setTextColor(colors.yellow)
-    write("Logistics:  ")
-    term.setTextColor(colors.white)
-    print("rules, add-rule, remove-rule <id>")
-    term.setTextColor(colors.yellow)
-    write("Crafting:   ")
-    term.setTextColor(colors.white)
-    print("processors, add-processor, remove-processor <id>, jobs")
-    term.setTextColor(colors.yellow)
-    write("Network:    ")
-    term.setTextColor(colors.white)
-    print("inventories, nickname <inv> <name>, nicknames, clients")
-    term.setTextColor(colors.yellow)
-    write("System:     ")
-    term.setTextColor(colors.white)
-    print("update, help, exit")
+    printColor("Storage:     stock, status, scan", colors.yellow)
+    printColor("Logistics:   rules, add-rule, remove-rule <id>", colors.yellow)
+    printColor("Crafting:    processors, add-processor, remove-processor <id>, jobs", colors.yellow)
+    printColor("Network:     inventories, nickname <inv> <name>, nicknames, clients", colors.yellow)
+    printColor("System:      update, help, exit", colors.yellow)
 end
 
 local EPIC_ITEMS = {
@@ -491,7 +476,6 @@ function cli.run()
         if #lines == 0 then addLine("", colors.white) end
         lines[#lines] = lines[#lines] .. text
         lineColors[#lines] = currentFg
-        redraw()
     end
 
     printError = function(...)
@@ -510,6 +494,10 @@ function cli.run()
     end
 
     cliPrint("=== TweakedLogistics ===", colors.cyan)
+    local s = _storage.getStatus()
+    cliPrint("Found " .. s.uniqueTypes .. " items in " .. s.inventories .. " inventories", colors.white)
+    local rules = _logistics.getRules()
+    cliPrint("Rules: " .. #rules .. " active", colors.white)
     cliPrint("Type 'help' for commands.", colors.lightGray)
     cliPrint("", colors.white)
     redraw()
