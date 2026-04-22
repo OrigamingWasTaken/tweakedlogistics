@@ -403,7 +403,9 @@ local function cmdUpdate()
     end
     fn()
     print("")
-    printColor("Reboot to apply update.", colors.yellow)
+    print("Rebooting...")
+    sleep(1)
+    os.reboot()
 end
 
 local function parseCommand(line)
