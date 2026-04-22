@@ -85,7 +85,20 @@ for _, f in ipairs(comp.files) do
         fs.delete(f.path)
     end
     print("  " .. f.path)
-    shell.run("wget", repo .. "/" .. f.remote, f.path)
+    local resp = http.get(repo .. "/" .. f.remote)
+    if resp then
+        local content = resp.readAll()
+        resp.close()
+        local h = fs.open(f.path, "w")
+        if h then
+            h.write(content)
+            h.close()
+        end
+    else
+        term.setTextColor(colors.red)
+        print("    Failed to download!")
+        term.setTextColor(colors.white)
+    end
 end
 
 local versionResp = http.get("https://api.github.com/repos/OrigamingWasTaken/tweakedlogistics/commits/main")
