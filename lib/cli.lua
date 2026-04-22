@@ -499,6 +499,8 @@ function cli.run()
         if #lines == 0 then addLine("", colors.white) end
         lines[#lines] = lines[#lines] .. text
         lineColors[#lines] = currentFg
+        scrollOffset = 0
+        redraw()
     end
 
     printError = function(...)
