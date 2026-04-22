@@ -118,3 +118,4 @@ function core.findInventories(typeFilter)
 end
 
 return core
+-- v0.2.0
