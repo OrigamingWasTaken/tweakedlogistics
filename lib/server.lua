@@ -241,7 +241,7 @@ function server.loop()
     rednet.host(PROTOCOL, HOST)
 
     while true do
-        local senderId, message = rednet.receive()
+        local senderId, message = rednet.receive(nil, 2)
         if senderId and type(message) == "table" and message.type then
             handleMessage(senderId, message)
         end

@@ -64,14 +64,15 @@ end
 function logistics.getRules()
     local list = {}
     for _, rule in pairs(_rules) do
+        local current = countItemInInventory(rule.destination, rule.item)
         table.insert(list, {
             id = rule.id,
             item = rule.item,
             target = rule.target,
             destination = rule.destination,
             priority = rule.priority,
-            status = rule._status or "pending",
-            current = rule._current or 0,
+            status = current >= rule.target and "fulfilled" or (rule._status or "pending"),
+            current = current,
         })
     end
     table.sort(list, function(a, b) return (a.priority or 0) > (b.priority or 0) end)

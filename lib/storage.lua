@@ -17,10 +17,20 @@ local _recentExtracts = {}
 function storage.init(core, config)
     _core = core
     _config = config
+
+    local saved = _config.get("storage.excluded") or {}
+    for _, name in ipairs(saved) do
+        _excludedInvs[name] = true
+    end
 end
 
 function storage.excludeInventory(name)
     _excludedInvs[name] = true
+    local list = {}
+    for n, _ in pairs(_excludedInvs) do
+        table.insert(list, n)
+    end
+    _config.set("storage.excluded", list)
 end
 
 local function isExcluded(name)
