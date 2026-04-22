@@ -46,7 +46,7 @@ end
 
 function vlib.send(msg)
     if not _serverId then return false end
-    return rednet.send(_serverId, msg, PROTOCOL)
+    return rednet.send(_serverId, msg)
 end
 
 local function handleUpdate()

@@ -49,7 +49,7 @@ function server.broadcastStockUpdate()
         rednet.send(clientId, {
             type = "stock_update",
             items = compact,
-        }, PROTOCOL)
+        })
     end
 end
 
@@ -79,7 +79,7 @@ local function handleRegister(senderId, msg)
     rednet.send(senderId, {
         type = "config_ack",
         serverId = os.getComputerID(),
-    }, PROTOCOL)
+    })
 end
 
 local function handleHeartbeat(senderId, msg)
@@ -111,7 +111,7 @@ local function handleQueryStock(senderId, msg)
     rednet.send(senderId, {
         type = "stock_update",
         items = result,
-    }, PROTOCOL)
+    })
 end
 
 local function handleRequestItems(senderId, msg)
@@ -130,7 +130,7 @@ local function handleRequestItems(senderId, msg)
         item = itemName,
         requested = count,
         delivered = delivered,
-    }, PROTOCOL)
+    })
 end
 
 local function handleCraftRequest(senderId, msg)
@@ -143,7 +143,7 @@ local function handleCraftRequest(senderId, msg)
         type = "craft_status",
         jobId = jobId,
         status = "queued",
-    }, PROTOCOL)
+    })
 end
 
 local function handleLocateItems(senderId, msg)
@@ -158,7 +158,7 @@ local function handleLocateItems(senderId, msg)
             item = itemName,
             sources = {},
             available = 0,
-        }, PROTOCOL)
+        })
         return
     end
 
@@ -180,7 +180,7 @@ local function handleLocateItems(senderId, msg)
         item = itemName,
         sources = sources,
         available = item.count,
-    }, PROTOCOL)
+    })
 end
 
 local function handleMessage(senderId, msg)
@@ -206,7 +206,7 @@ function server.broadcastUpdate()
     for clientId, _ in pairs(_clients) do
         rednet.send(clientId, {
             type = "do_update",
-        }, PROTOCOL)
+        })
         count = count + 1
     end
     return count
