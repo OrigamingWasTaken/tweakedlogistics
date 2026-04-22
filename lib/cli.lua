@@ -25,11 +25,18 @@ local function printColor(text, color)
 end
 
 local function printHelp()
-    printColor("Storage:     stock, status, scan", colors.yellow)
-    printColor("Logistics:   rules, add-rule, remove-rule <id>", colors.yellow)
-    printColor("Crafting:    processors, add-processor, remove-processor <id>, jobs", colors.yellow)
-    printColor("Network:     inventories, nickname <inv> <name>, nicknames, clients", colors.yellow)
-    printColor("System:      update, help, exit", colors.yellow)
+    printColor("Storage:", colors.yellow)
+    print("  stock, status, scan")
+    printColor("Logistics:", colors.yellow)
+    print("  rules, add-rule, remove-rule <id>")
+    printColor("Crafting:", colors.yellow)
+    print("  processors, add-processor")
+    print("  remove-processor <id>, jobs")
+    printColor("Network:", colors.yellow)
+    print("  inventories, nicknames, clients")
+    print("  nickname <inv> <name>")
+    printColor("System:", colors.yellow)
+    print("  update, help, exit")
 end
 
 local EPIC_ITEMS = {
@@ -410,6 +417,10 @@ function cli.run()
     local function cliPrint(text, fg)
         text = tostring(text or "")
         for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+            while #line > screenW do
+                addLine(line:sub(1, screenW), fg or colors.white)
+                line = line:sub(screenW + 1)
+            end
             addLine(line, fg or colors.white)
         end
     end
