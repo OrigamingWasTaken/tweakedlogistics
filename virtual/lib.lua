@@ -49,9 +49,32 @@ function vlib.send(msg)
     return rednet.send(_serverId, msg, PROTOCOL)
 end
 
+local function handleUpdate()
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setTextColor(colors.yellow)
+    print("Update received from server!")
+    print("Installing...")
+
+    local resp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
+    if resp then
+        local code = resp.readAll()
+        resp.close()
+        local fn = loadstring(code, "install.lua")
+        if fn then fn() end
+    end
+
+    print("Rebooting...")
+    sleep(1)
+    os.reboot()
+end
+
 function vlib.receive(timeout)
     local senderId, message = rednet.receive(nil, timeout)
-    if senderId and senderId == _serverId then
+    if senderId and senderId == _serverId and type(message) == "table" then
+        if message.type == "do_update" then
+            handleUpdate()
+        end
         return message
     end
     return nil
@@ -147,31 +170,6 @@ function vlib.setupScreen(blockName)
     print("Connected to server #" .. _serverId)
     vlib.saveConfig()
     return true
-end
-
-function vlib.updateListener()
-    while true do
-        local senderId, message = rednet.receive()
-        if senderId and senderId == _serverId and type(message) == "table" and message.type == "do_update" then
-            term.clear()
-            term.setCursorPos(1, 1)
-            term.setTextColor(colors.yellow)
-            print("Update received from server!")
-            print("Installing...")
-
-            local resp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
-            if resp then
-                local code = resp.readAll()
-                resp.close()
-                local fn = loadstring(code, "install.lua")
-                if fn then fn() end
-            end
-
-            print("Rebooting...")
-            sleep(1)
-            os.reboot()
-        end
-    end
 end
 
 return vlib

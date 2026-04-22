@@ -230,10 +230,10 @@ local function mainLoop()
         end
 
         drawStatus(cfg, current, status)
-        sleep(cfg.interval or 10)
+        vlib.receive(cfg.interval or 10)
     end
 end
 
 if setup() then
-    parallel.waitForAny(mainLoop, vlib.updateListener)
+    mainLoop()
 end
