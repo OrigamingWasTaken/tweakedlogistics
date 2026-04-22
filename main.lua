@@ -45,9 +45,6 @@ for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
     end
 end
 print("Server: " .. (modemFound and "enabled" or "no modem"))
-
-local rules = logistics.getRules()
-print("Rules: " .. #rules .. " active")
 print("")
 term.setTextColor(colors.lightGray)
 print("Type 'help' for commands.")
