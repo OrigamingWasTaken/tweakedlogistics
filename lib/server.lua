@@ -53,6 +53,22 @@ function server.broadcastStockUpdate()
     end
 end
 
+local function findItem(itemName)
+    local items = _storage.getItems()
+    for _, item in ipairs(items) do
+        if item.name == itemName then return item end
+    end
+    if not itemName:find(":") then
+        for _, item in ipairs(items) do
+            if item.name == "minecraft:" .. itemName then return item end
+        end
+        for _, item in ipairs(items) do
+            if item.name:match(":(.+)") == itemName then return item end
+        end
+    end
+    return nil
+end
+
 local function handleRegister(senderId, msg)
     _clients[senderId] = {
         blockType = msg.blockType,
@@ -103,18 +119,10 @@ local function handleRequestItems(senderId, msg)
     local count = msg.count or 1
     local destination = msg.destination
 
-    local items = _storage.getItems()
-    local key = nil
-    for _, item in ipairs(items) do
-        if item.name == itemName then
-            key = item.key
-            break
-        end
-    end
-
+    local item = findItem(itemName)
     local delivered = 0
-    if key then
-        delivered = _storage.extract(key, count, destination)
+    if item then
+        delivered = _storage.extract(item.key, count, destination)
     end
 
     rednet.send(senderId, {
@@ -142,14 +150,7 @@ local function handleLocateItems(senderId, msg)
     local itemName = msg.item
     local count = msg.count or 1
 
-    local items = _storage.getItems()
-    local item = nil
-    for _, it in ipairs(items) do
-        if it.name == itemName then
-            item = it
-            break
-        end
-    end
+    local item = findItem(itemName)
 
     if not item then
         rednet.send(senderId, {

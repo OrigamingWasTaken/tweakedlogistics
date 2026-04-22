@@ -121,6 +121,18 @@ local function findItemKey(itemName)
             return item.key
         end
     end
+    if not itemName:find(":") then
+        for _, item in ipairs(items) do
+            if item.name == "minecraft:" .. itemName then
+                return item.key
+            end
+        end
+        for _, item in ipairs(items) do
+            if item.name:match(":(.+)") == itemName then
+                return item.key
+            end
+        end
+    end
     return nil
 end
 
