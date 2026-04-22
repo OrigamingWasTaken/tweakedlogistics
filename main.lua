@@ -36,7 +36,21 @@ print("Running initial scan...")
 storage.scan()
 local status = storage.getStatus()
 print("Found " .. status.uniqueTypes .. " item types in " .. status.inventories .. " inventories")
-print("Starting modules...")
+
+local modemFound = false
+for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+    if peripheral.hasType(side, "modem") then
+        modemFound = true
+        break
+    end
+end
+print("Server: " .. (modemFound and "enabled" or "no modem"))
+
+local rules = logistics.getRules()
+print("Rules: " .. #rules .. " active")
+print("")
+term.setTextColor(colors.lightGray)
+print("Type 'help' for commands.")
 print("")
 
 parallel.waitForAll(

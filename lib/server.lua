@@ -169,13 +169,11 @@ end
 function server.loop()
     _modemSide = findModem()
     if not _modemSide then
-        print("[server] No modem found, server disabled")
         return
     end
 
     rednet.open(_modemSide)
     rednet.host(PROTOCOL, HOST)
-    print("[server] Hosting on protocol '" .. PROTOCOL .. "'")
 
     while true do
         local senderId, message, protocol = rednet.receive(PROTOCOL)
