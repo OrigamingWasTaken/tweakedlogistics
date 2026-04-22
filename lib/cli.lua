@@ -382,39 +382,217 @@ local function parseCommand(line)
     return cmd, args
 end
 
+local function dispatchCommand(cmd, args)
+    if cmd == "help" then printHelp()
+    elseif cmd == "stock" then cmdStock()
+    elseif cmd == "status" then cmdStatus()
+    elseif cmd == "rules" then cmdRules()
+    elseif cmd == "add-rule" then cmdAddRule()
+    elseif cmd == "remove-rule" then cmdRemoveRule(args[1])
+    elseif cmd == "processors" then cmdProcessors()
+    elseif cmd == "add-processor" then cmdAddProcessor()
+    elseif cmd == "remove-processor" then cmdRemoveProcessor(args[1])
+    elseif cmd == "jobs" then cmdJobs()
+    elseif cmd == "inventories" then cmdInventories()
+    elseif cmd == "nickname" then cmdNickname(args)
+    elseif cmd == "nicknames" then cmdNicknames()
+    elseif cmd == "clients" then cmdClients()
+    elseif cmd == "scan" then cmdScan()
+    elseif cmd == "update" then cmdUpdate()
+    elseif cmd == "exit" then return false
+    else
+        printColor("Unknown command: " .. cmd, colors.red)
+        print("Type 'help' for commands.")
+    end
+    return true
+end
+
 function cli.run()
-    while true do
-        term.setTextColor(colors.cyan)
-        write("tl> ")
-        term.setTextColor(colors.white)
-        local line = read()
-        if not line or line == "" then
-            -- skip
-        else
-            local cmd, args = parseCommand(line)
-            if cmd == "help" then printHelp()
-            elseif cmd == "stock" then cmdStock()
-            elseif cmd == "status" then cmdStatus()
-            elseif cmd == "rules" then cmdRules()
-            elseif cmd == "add-rule" then cmdAddRule()
-            elseif cmd == "remove-rule" then cmdRemoveRule(args[1])
-            elseif cmd == "processors" then cmdProcessors()
-            elseif cmd == "add-processor" then cmdAddProcessor()
-            elseif cmd == "remove-processor" then cmdRemoveProcessor(args[1])
-            elseif cmd == "jobs" then cmdJobs()
-            elseif cmd == "inventories" then cmdInventories()
-            elseif cmd == "nickname" then cmdNickname(args)
-            elseif cmd == "nicknames" then cmdNicknames()
-            elseif cmd == "clients" then cmdClients()
-            elseif cmd == "scan" then cmdScan()
-            elseif cmd == "update" then cmdUpdate()
-            elseif cmd == "exit" then return
+    local screenW, screenH = term.getSize()
+    local lines = {}
+    local lineColors = {}
+    local scrollOffset = 0
+
+    local function addLine(text, fg)
+        table.insert(lines, text or "")
+        table.insert(lineColors, fg or colors.white)
+        if #lines > 500 then
+            table.remove(lines, 1)
+            table.remove(lineColors, 1)
+        end
+    end
+
+    local function cliPrint(text, fg)
+        text = tostring(text or "")
+        for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+            addLine(line, fg or colors.white)
+        end
+    end
+
+    local function redraw()
+        local viewH = screenH - 1
+        local maxScroll = math.max(0, #lines - viewH)
+        if scrollOffset > maxScroll then scrollOffset = maxScroll end
+        if scrollOffset < 0 then scrollOffset = 0 end
+
+        local startLine = #lines - viewH - scrollOffset + 1
+        for y = 1, viewH do
+            local idx = startLine + y - 1
+            term.setCursorPos(1, y)
+            term.setBackgroundColor(colors.black)
+            if idx >= 1 and idx <= #lines then
+                term.setTextColor(lineColors[idx] or colors.white)
+                local l = lines[idx]
+                if #l > screenW then l = l:sub(1, screenW) end
+                term.write(l .. string.rep(" ", screenW - #l))
             else
-                printColor("Unknown command: " .. cmd, colors.red)
-                print("Type 'help' for commands.")
+                term.write(string.rep(" ", screenW))
+            end
+        end
+
+        term.setCursorPos(1, screenH)
+        term.setBackgroundColor(colors.black)
+        if scrollOffset > 0 then
+            term.setTextColor(colors.lightGray)
+            local info = "[+" .. scrollOffset .. " lines] "
+            term.write(info)
+            term.setTextColor(colors.cyan)
+            term.write("tl> ")
+            term.setTextColor(colors.white)
+        else
+            term.setTextColor(colors.cyan)
+            term.write("tl> ")
+            term.setTextColor(colors.white)
+            term.write(string.rep(" ", screenW - 4))
+            term.setCursorPos(5, screenH)
+        end
+    end
+
+    local origPrint = print
+    local origWrite = write
+    local origPrintError = printError
+
+    local currentFg = colors.white
+    local oldSetTextColor = term.setTextColor
+
+    print = function(...)
+        local parts = {}
+        for i = 1, select("#", ...) do
+            table.insert(parts, tostring(select(i, ...)))
+        end
+        local text = table.concat(parts, "\t")
+        cliPrint(text, currentFg)
+        scrollOffset = 0
+        redraw()
+    end
+
+    write = function(text)
+        text = tostring(text or "")
+        if #lines == 0 then addLine("", colors.white) end
+        lines[#lines] = lines[#lines] .. text
+        lineColors[#lines] = currentFg
+        redraw()
+    end
+
+    printError = function(...)
+        local parts = {}
+        for i = 1, select("#", ...) do
+            table.insert(parts, tostring(select(i, ...)))
+        end
+        cliPrint(table.concat(parts, "\t"), colors.red)
+        scrollOffset = 0
+        redraw()
+    end
+
+    term.setTextColor = function(c)
+        currentFg = c
+        oldSetTextColor(c)
+    end
+
+    cliPrint("=== TweakedLogistics ===", colors.cyan)
+    cliPrint("Type 'help' for commands.", colors.lightGray)
+    cliPrint("", colors.white)
+    redraw()
+
+    local running = true
+    while running do
+        redraw()
+        term.setCursorPos(5 + (scrollOffset > 0 and #("[+" .. scrollOffset .. " lines] ") or 0), screenH)
+        term.setTextColor(colors.white)
+        term.setCursorBlink(true)
+
+        local inputBuf = ""
+        local inputting = true
+        while inputting do
+            local event, p1, p2, p3 = os.pullEvent()
+
+            if event == "char" then
+                inputBuf = inputBuf .. p1
+                scrollOffset = 0
+                redraw()
+                term.setCursorPos(5, screenH)
+                term.setTextColor(colors.white)
+                term.write(inputBuf)
+
+            elseif event == "key" then
+                if p1 == keys.enter then
+                    inputting = false
+                elseif p1 == keys.backspace then
+                    if #inputBuf > 0 then
+                        inputBuf = inputBuf:sub(1, #inputBuf - 1)
+                        scrollOffset = 0
+                        redraw()
+                        term.setCursorPos(5, screenH)
+                        term.setTextColor(colors.white)
+                        term.write(inputBuf)
+                    end
+                elseif p1 == keys.pageUp then
+                    scrollOffset = scrollOffset + (screenH - 2)
+                    redraw()
+                    term.setCursorPos(5, screenH)
+                    term.setTextColor(colors.white)
+                    term.write(inputBuf)
+                elseif p1 == keys.pageDown then
+                    scrollOffset = math.max(0, scrollOffset - (screenH - 2))
+                    redraw()
+                    term.setCursorPos(5, screenH)
+                    term.setTextColor(colors.white)
+                    term.write(inputBuf)
+                end
+
+            elseif event == "mouse_scroll" then
+                if p1 == -1 then
+                    scrollOffset = scrollOffset + 3
+                elseif p1 == 1 then
+                    scrollOffset = math.max(0, scrollOffset - 3)
+                end
+                redraw()
+                term.setCursorPos(5, screenH)
+                term.setTextColor(colors.white)
+                term.write(inputBuf)
+            end
+        end
+
+        term.setCursorBlink(false)
+
+        cliPrint("tl> " .. inputBuf, colors.cyan)
+        scrollOffset = 0
+
+        if inputBuf ~= "" then
+            local cmd, args = parseCommand(inputBuf)
+            local cont = dispatchCommand(cmd, args)
+            if cont == false then
+                running = false
             end
         end
     end
+
+    print = origPrint
+    write = origWrite
+    printError = origPrintError
+    term.setTextColor = oldSetTextColor
+    term.clear()
+    term.setCursorPos(1, 1)
 end
 
 return cli
