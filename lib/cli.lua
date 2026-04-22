@@ -50,6 +50,7 @@ local function printHelp()
     print("")
     printColor("System:", colors.yellow)
     print("  scan               - Force rescan")
+    print("  update             - Check for updates")
     print("  help               - Show this help")
     print("  exit               - Return to main loop")
 end
@@ -263,6 +264,66 @@ local function cmdScan()
     printColor("Found " .. s.uniqueTypes .. " item types in " .. s.inventories .. " inventories (" .. s.lastScanMs .. "ms)", colors.green)
 end
 
+local function cmdUpdate()
+    local currentHash = nil
+    if fs.exists("/tweakedlogistics/.version") then
+        local h = fs.open("/tweakedlogistics/.version", "r")
+        if h then
+            currentHash = h.readAll()
+            h.close()
+        end
+    end
+
+    print("Checking for updates...")
+    local resp = http.get("https://api.github.com/repos/OrigamingWasTaken/tweakedlogistics/commits/main")
+    if not resp then
+        printColor("Failed to check for updates.", colors.red)
+        return
+    end
+
+    local body = resp.readAll()
+    resp.close()
+    local data = textutils.unserializeJSON(body)
+    if not data or not data.sha then
+        printColor("Failed to parse update info.", colors.red)
+        return
+    end
+
+    local latestHash = data.sha
+
+    if currentHash and currentHash == latestHash then
+        printColor("Already up to date.", colors.green)
+        return
+    end
+
+    if currentHash then
+        print("Current: " .. currentHash:sub(1, 7))
+    else
+        print("Current: unknown")
+    end
+    print("Latest:  " .. latestHash:sub(1, 7))
+
+    if data.commit and data.commit.message then
+        local msg = data.commit.message:match("^[^\n]+") or data.commit.message
+        term.setTextColor(colors.lightGray)
+        print("         " .. msg)
+        term.setTextColor(colors.white)
+    end
+
+    print("")
+    term.setTextColor(colors.yellow)
+    write("Install update? (y/n): ")
+    term.setTextColor(colors.white)
+    local answer = read()
+    if answer ~= "y" and answer ~= "Y" then
+        print("Cancelled.")
+        return
+    end
+
+    print("")
+    shell.run("wget", "run", "https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
+end
+
 local function parseCommand(line)
     local parts = {}
     for word in line:gmatch("%S+") do
@@ -304,6 +365,7 @@ function cli.run()
             elseif cmd == "nicknames" then cmdNicknames()
             elseif cmd == "clients" then cmdClients()
             elseif cmd == "scan" then cmdScan()
+            elseif cmd == "update" then cmdUpdate()
             elseif cmd == "exit" then return
             else
                 printColor("Unknown command: " .. cmd, colors.red)

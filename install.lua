@@ -88,6 +88,21 @@ for _, f in ipairs(comp.files) do
     shell.run("wget", repo .. "/" .. f.remote, f.path)
 end
 
+local versionResp = http.get("https://api.github.com/repos/OrigamingWasTaken/tweakedlogistics/commits/main")
+if versionResp then
+    local body = versionResp.readAll()
+    versionResp.close()
+    local data = textutils.unserializeJSON(body)
+    if data and data.sha then
+        fs.makeDir("/tweakedlogistics")
+        local h = fs.open("/tweakedlogistics/.version", "w")
+        if h then
+            h.write(data.sha)
+            h.close()
+        end
+    end
+end
+
 print("")
 term.setTextColor(colors.green)
 print("Done!")
