@@ -604,6 +604,7 @@ function cli.run()
 
     local currentFg = colors.white
     local oldSetTextColor = term.setTextColor
+    local lineOpen = false
 
     print = function(...)
         local parts = {}
@@ -611,14 +612,23 @@ function cli.run()
             table.insert(parts, tostring(select(i, ...)))
         end
         local text = table.concat(parts, "\t")
-        cliPrint(text, currentFg)
+        if lineOpen then
+            lines[#lines] = lines[#lines] .. text
+            lineColors[#lines] = currentFg
+            lineOpen = false
+        else
+            cliPrint(text, currentFg)
+        end
         scrollOffset = 0
         redraw()
     end
 
     write = function(text)
         text = tostring(text or "")
-        if #lines == 0 then addLine("", colors.white) end
+        if not lineOpen then
+            addLine("", colors.white)
+            lineOpen = true
+        end
         lines[#lines] = lines[#lines] .. text
         lineColors[#lines] = currentFg
         scrollOffset = 0
