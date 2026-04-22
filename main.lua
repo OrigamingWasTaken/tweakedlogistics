@@ -15,7 +15,7 @@ crafting.init(core, storage, cfg)
 logistics.setCrafting(crafting)
 nicknames.init(cfg)
 server.init(core, storage, logistics, crafting, nicknames, cfg)
-dashboard.init(core, storage, logistics, crafting, cfg)
+dashboard.init(core, storage, logistics, crafting, server, cfg)
 cli.init(core, storage, logistics, crafting, nicknames, server, dashboard, cfg)
 
 local savedProcessors = cfg.get("crafting.processors")

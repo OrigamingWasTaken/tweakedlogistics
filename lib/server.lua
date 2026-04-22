@@ -70,12 +70,16 @@ local function findItem(itemName)
 end
 
 local function handleRegister(senderId, msg)
+    local existing = _clients[senderId]
     _clients[senderId] = {
         blockType = msg.blockType,
         computerId = msg.computerId,
         config = msg.config,
         version = msg.version,
         lastSeen = os.epoch("utc"),
+        firstSeen = existing and existing.firstSeen or os.epoch("utc"),
+        requestCount = existing and existing.requestCount or 0,
+        itemsMoved = existing and existing.itemsMoved or 0,
     }
 
     if msg.config and msg.config.destination then
@@ -156,6 +160,10 @@ local function handleLocateItems(senderId, msg)
     local itemName = msg.item
     local count = msg.count or 1
 
+    if _clients[senderId] then
+        _clients[senderId].requestCount = (_clients[senderId].requestCount or 0) + 1
+    end
+
     local item = findItem(itemName)
 
     if not item then
@@ -230,12 +238,19 @@ end
 
 function server.getClients()
     local list = {}
+    local now = os.epoch("utc")
     for id, client in pairs(_clients) do
+        local elapsed = now - (client.lastSeen or 0)
         table.insert(list, {
             id = id,
             blockType = client.blockType,
             version = client.version,
+            config = client.config,
             lastSeen = client.lastSeen,
+            firstSeen = client.firstSeen,
+            requestCount = client.requestCount or 0,
+            itemsMoved = client.itemsMoved or 0,
+            online = elapsed < 60000,
         })
     end
     return list

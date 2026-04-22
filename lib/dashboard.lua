@@ -203,61 +203,83 @@ local function panelStockOverview(mon, w, h, monName)
     end
 end
 
-local function panelRuleStatus(mon, w, h)
-    header(mon, w, " Rule Status", colors.purple, colors.gray)
+local TYPE_COLORS = {
+    virtual_restocker = colors.blue,
+    virtual_redstone_requester = colors.orange,
+    virtual_speaker = colors.purple,
+}
 
-    if not _logistics then
-        text(mon, 2, 3, "Logistics not loaded", colors.lightGray, colors.black)
+local TYPE_ICONS = {
+    virtual_restocker = "R",
+    virtual_redstone_requester = "Q",
+    virtual_speaker = "S",
+}
+
+local _clientRows = {}
+
+local function panelClients(mon, w, h, monName)
+    header(mon, w, " Clients", colors.purple, colors.gray)
+
+    if not _server then
+        text(mon, 2, 3, "Server not loaded", colors.lightGray, colors.black)
         return
     end
 
-    local rules = _logistics.getRules()
-    local rowsPerRule = 4
-    local maxRules = math.floor((h - 2) / rowsPerRule)
+    local clients = _server.getClients()
+    _clientRows[monName] = {}
 
-    if #rules == 0 then
-        text(mon, 2, 3, "No rules defined", colors.lightGray, colors.black)
+    if #clients == 0 then
+        text(mon, 2, 3, "No clients connected", colors.lightGray, colors.black)
         return
     end
 
-    for i = 1, math.min(#rules, maxRules) do
-        local rule = rules[i]
-        local baseRow = 2 + (i - 1) * rowsPerRule
+    local rowsPerClient = 3
+    local maxClients = math.floor((h - 2) / rowsPerClient)
+
+    for i = 1, math.min(#clients, maxClients) do
+        local client = clients[i]
+        local baseRow = 2 + (i - 1) * rowsPerClient
         local bg = i % 2 == 0 and colors.gray or colors.black
 
-        local statusColor = colors.yellow
-        local statusIcon = "~"
-        if rule.status == "fulfilled" then
-            statusColor = colors.green
+        _clientRows[monName][baseRow] = client
+        _clientRows[monName][baseRow + 1] = client
+        _clientRows[monName][baseRow + 2] = client
+
+        local typeColor = TYPE_COLORS[client.blockType] or colors.white
+        local icon = TYPE_ICONS[client.blockType] or "?"
+        local shortType = (client.blockType or "unknown"):gsub("virtual_", "")
+
+        local statusIcon, statusColor
+        if client.online then
             statusIcon = "+"
-        elseif rule.status == "short" then
-            statusColor = colors.red
+            statusColor = colors.green
+        else
             statusIcon = "!"
+            statusColor = colors.red
         end
 
-        local displayName = rule.item:match(":(.+)") or rule.item
-        displayName = displayName:gsub("_", " ")
+        box(mon, 1, baseRow, w, rowsPerClient, bg)
 
-        box(mon, 1, baseRow, w, rowsPerRule, bg)
+        text(mon, 2, baseRow, icon, typeColor, bg)
+        text(mon, 4, baseRow, "#" .. client.id .. " " .. shortType, colors.white, bg)
+        textRight(mon, 1, baseRow, w - 1, statusIcon, statusColor, bg)
 
-        text(mon, 2, baseRow, statusIcon, statusColor, bg)
-        local nameW = w - 4
-        if #displayName > nameW then
-            displayName = displayName:sub(1, nameW - 2) .. ".."
+        local info = "Reqs: " .. formatCount(client.requestCount)
+        text(mon, 4, baseRow + 1, info, colors.lightGray, bg)
+
+        local ver = client.version and client.version:sub(1, 7) or "?"
+        textRight(mon, 1, baseRow + 1, w - 1, ver, colors.lightGray, bg)
+
+        if client.config then
+            local detail = ""
+            if client.config.item then
+                detail = (client.config.item:match(":(.+)") or client.config.item):gsub("_", " ")
+            elseif client.config.destination then
+                detail = client.config.destination:match(":(.+)") or client.config.destination
+            end
+            if #detail > w - 5 then detail = detail:sub(1, w - 7) .. ".." end
+            text(mon, 4, baseRow + 2, detail, colors.lightBlue, bg)
         end
-        text(mon, 4, baseRow, displayName, statusColor, bg)
-
-        local dest = rule.destination or "?"
-        dest = dest:match(":(.+)") or dest
-        if #dest > w - 6 then dest = dest:sub(1, w - 8) .. ".." end
-        text(mon, 4, baseRow + 1, "> " .. dest, colors.lightGray, bg)
-
-        local countStr = formatCount(rule.current) .. " / " .. formatCount(rule.target)
-        text(mon, 4, baseRow + 2, countStr, colors.white, bg)
-
-        local barW = w - 4
-        local barColor = statusColor
-        progressBar(mon, 2, baseRow + 3, barW, rule.current, rule.target, barColor, colors.lightGray)
     end
 end
 
@@ -421,7 +443,7 @@ end
 
 local PANEL_REGISTRY = {
     stock_overview = panelStockOverview,
-    rule_status = panelRuleStatus,
+    clients = panelClients,
     crafting_jobs = panelCraftingJobs,
     processor_status = panelProcessorStatus,
     activity = panelActivity,
@@ -431,6 +453,64 @@ local PANEL_REGISTRY = {
 
 local _modalItem = {}
 local _modalClose = {}
+local _modalClient = {}
+
+local function drawClientModal(mon, w, h, client, monName)
+    local modalW = math.min(w - 4, 40)
+    local modalH = math.min(h - 4, 14)
+    local mx = math.floor((w - modalW) / 2) + 1
+    local my = math.floor((h - modalH) / 2) + 1
+
+    box(mon, mx, my, modalW, modalH, colors.gray)
+
+    local typeColor = TYPE_COLORS[client.blockType] or colors.white
+    local shortType = (client.blockType or "unknown"):gsub("virtual_", "")
+    box(mon, mx, my, modalW, 1, typeColor)
+    text(mon, mx + 1, my, "#" .. client.id .. " " .. shortType, colors.white, typeColor)
+
+    local closeX = mx + modalW - 2
+    text(mon, closeX, my, "X", colors.red, typeColor)
+    _modalClose[monName] = { x1 = closeX, y = my }
+
+    local row = my + 2
+
+    text(mon, mx + 1, row, "Status: ", colors.lightGray, colors.gray)
+    if client.online then
+        text(mon, mx + 9, row, "Online", colors.green, colors.gray)
+    else
+        text(mon, mx + 9, row, "Offline", colors.red, colors.gray)
+    end
+    row = row + 1
+
+    local ver = client.version and client.version:sub(1, 7) or "?"
+    text(mon, mx + 1, row, "Version: " .. ver, colors.lightGray, colors.gray)
+    row = row + 1
+
+    text(mon, mx + 1, row, "Requests: " .. formatCount(client.requestCount), colors.lightGray, colors.gray)
+    row = row + 2
+
+    if client.config then
+        text(mon, mx + 1, row, "Config:", colors.cyan, colors.gray)
+        row = row + 1
+        if client.config.item then
+            local itemName = (client.config.item:match(":(.+)") or client.config.item):gsub("_", " ")
+            text(mon, mx + 2, row, "Item: " .. itemName, colors.white, colors.gray)
+            row = row + 1
+        end
+        if client.config.target then
+            text(mon, mx + 2, row, "Target: " .. client.config.target, colors.white, colors.gray)
+            row = row + 1
+        end
+        if client.config.destination then
+            local dest = client.config.destination:match(":(.+)") or client.config.destination
+            text(mon, mx + 2, row, "Dest: " .. dest, colors.white, colors.gray)
+            row = row + 1
+        end
+        if client.config.mode then
+            text(mon, mx + 2, row, "Mode: " .. client.config.mode, colors.white, colors.gray)
+        end
+    end
+end
 
 local function drawModal(mon, w, h, item, monName)
     local modalW = math.min(w - 4, 40)
@@ -544,11 +624,14 @@ end
 
 -- Init and loop --
 
-function dashboard.init(core, storage, logistics, crafting, config)
+local _server = nil
+
+function dashboard.init(core, storage, logistics, crafting, server, config)
     _core = core
     _storage = storage
     _logistics = logistics
     _crafting = crafting
+    _server = server
     _config = config
     findSpeaker()
 end
@@ -579,6 +662,8 @@ local function renderPanel(mon, panelId, monName)
 
     if _modalItem[monName] then
         drawModal(mon, w, h, _modalItem[monName], monName)
+    elseif _modalClient[monName] then
+        drawClientModal(mon, w, h, _modalClient[monName], monName)
     end
 end
 
@@ -634,10 +719,11 @@ local function handleTouch(monName, tx, ty)
         return
     end
 
-    if _modalItem[monName] then
+    if _modalItem[monName] or _modalClient[monName] then
         local close = _modalClose[monName]
         if close and tx >= close.x1 and ty == close.y then
             _modalItem[monName] = nil
+            _modalClient[monName] = nil
             _modalClose[monName] = nil
             playClick()
             renderAll()
@@ -648,6 +734,14 @@ local function handleTouch(monName, tx, ty)
     local trash = _trashButtons[monName]
     if trash and tx >= trash.x1 and tx <= trash.x2 and ty == trash.y then
         _confirmClear[monName] = true
+        playClick()
+        renderAll()
+        return
+    end
+
+    local cRows = _clientRows[monName]
+    if cRows and cRows[ty] then
+        _modalClient[monName] = cRows[ty]
         playClick()
         renderAll()
         return
