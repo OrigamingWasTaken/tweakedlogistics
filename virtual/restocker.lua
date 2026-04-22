@@ -3,6 +3,42 @@ local vlib = dofile("/tweakedlogistics/virtual/lib.lua")
 local CONFIG_PATH = "/virtual_restocker.config"
 local BLOCK_TYPE = "virtual_restocker"
 
+local function resolveInventory(sideOrName)
+    if peripheral.hasType(sideOrName, "inventory") then
+        local wrapped = peripheral.wrap(sideOrName)
+        if wrapped then
+            local name = peripheral.getName(wrapped)
+            if name then return name end
+        end
+    end
+    return sideOrName
+end
+
+local function listLocalInventories()
+    local found = {}
+    local sides = {"left", "right", "top", "bottom", "front", "back"}
+    for _, side in ipairs(sides) do
+        if peripheral.hasType(side, "inventory") then
+            local wrapped = peripheral.wrap(side)
+            local name = peripheral.getName(wrapped)
+            table.insert(found, { side = side, name = name })
+        end
+    end
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "inventory") then
+            local already = false
+            for _, f in ipairs(found) do
+                if f.name == name then already = true break end
+            end
+            if not already then
+                table.insert(found, { side = nil, name = name })
+            end
+        end
+    end
+    return found
+end
+
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
     if not vlib.setupScreen("Restocker") then return false end
@@ -26,9 +62,36 @@ local function setup()
     end
 
     if not cfg.destination then
-        write("Destination inventory: ")
-        cfg.destination = read()
-        if not cfg.destination or cfg.destination == "" then return false end
+        local invs = listLocalInventories()
+        if #invs > 0 then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Available inventories:")
+            term.setTextColor(colors.white)
+            for i, inv in ipairs(invs) do
+                local label = inv.name
+                if inv.side then
+                    label = label .. " (" .. inv.side .. ")"
+                end
+                print("  " .. i .. ". " .. label)
+            end
+            print("")
+            write("Pick inventory (number or name): ")
+            local input = read()
+            local num = tonumber(input)
+            if num and invs[num] then
+                cfg.destination = invs[num].name
+            elseif input and input ~= "" then
+                cfg.destination = resolveInventory(input)
+            else
+                return false
+            end
+        else
+            write("Destination inventory name: ")
+            cfg.destination = read()
+            if not cfg.destination or cfg.destination == "" then return false end
+            cfg.destination = resolveInventory(cfg.destination)
+        end
     end
 
     if not cfg.interval then
