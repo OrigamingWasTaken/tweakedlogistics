@@ -212,32 +212,47 @@ local function panelRuleStatus(mon, w, h)
     end
 
     local rules = _logistics.getRules()
-    local maxRows = h - 2
+    local rowsPerRule = 3
+    local maxRules = math.floor((h - 2) / rowsPerRule)
 
     if #rules == 0 then
         text(mon, 2, 3, "No rules defined", colors.lightGray, colors.black)
         return
     end
 
-    for i = 1, math.min(#rules, maxRows) do
+    for i = 1, math.min(#rules, maxRules) do
         local rule = rules[i]
-        local row = i + 1
+        local baseRow = 2 + (i - 1) * rowsPerRule
         local bg = i % 2 == 0 and colors.gray or colors.black
 
         local statusColor = colors.yellow
-        if rule.status == "fulfilled" then statusColor = colors.green
-        elseif rule.status == "short" then statusColor = colors.red end
-
-        local countStr = formatCount(rule.current) .. "/" .. formatCount(rule.target)
-        local nameW = w - #countStr - 4
-        local name = rule.item:match(":(.+)") or rule.item
-        if #name > nameW then
-            name = name:sub(1, nameW - 2) .. ".."
+        local statusIcon = "~"
+        if rule.status == "fulfilled" then
+            statusColor = colors.green
+            statusIcon = "+"
+        elseif rule.status == "short" then
+            statusColor = colors.red
+            statusIcon = "!"
         end
 
-        box(mon, 1, row, w, 1, bg)
-        text(mon, 2, row, name, statusColor, bg)
-        textRight(mon, 1, row, w - 1, countStr, colors.lightGray, bg)
+        local displayName = rule.item:match(":(.+)") or rule.item
+        displayName = displayName:gsub("_", " ")
+
+        box(mon, 1, baseRow, w, rowsPerRule, bg)
+
+        text(mon, 2, baseRow, statusIcon, statusColor, bg)
+        local nameW = w - 4
+        if #displayName > nameW then
+            displayName = displayName:sub(1, nameW - 2) .. ".."
+        end
+        text(mon, 4, baseRow, displayName, statusColor, bg)
+
+        local countStr = formatCount(rule.current) .. " / " .. formatCount(rule.target)
+        text(mon, 4, baseRow + 1, countStr, colors.white, bg)
+
+        local barW = w - 4
+        local barColor = statusColor
+        progressBar(mon, 2, baseRow + 2, barW, rule.current, rule.target, barColor, colors.lightGray)
     end
 end
 
