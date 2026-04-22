@@ -302,19 +302,17 @@ local function cmdClients()
         end
     end
 
-    printColor(string.format("%-6s %-20s %s", "ID", "Type", "Version"), colors.yellow)
     for _, client in ipairs(clients) do
         local ver = client.version and client.version:sub(1, 7) or "?"
-        local mismatch = ""
-        if serverVersion and client.version and client.version ~= serverVersion then
-            mismatch = " MISMATCH"
-        end
+        local name = client.blockType or "unknown"
+        local short = name:gsub("virtual_", "")
+        local mismatch = serverVersion and client.version and client.version ~= serverVersion
         term.setTextColor(colors.white)
-        write(string.format("%-6d %-20s %s", client.id, client.blockType or "unknown", ver))
-        if mismatch ~= "" then
-            printColor(mismatch, colors.red)
+        write("#" .. client.id .. " " .. short .. " ")
+        if mismatch then
+            printColor(ver .. " MISMATCH", colors.red)
         else
-            print("")
+            printColor(ver, colors.green)
         end
     end
 end
