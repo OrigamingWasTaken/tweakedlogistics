@@ -159,6 +159,17 @@ local function drawScreen(cfg, lastResult, waiting)
         print("Waiting for redstone signal...")
     end
 
+    print("")
+    term.setTextColor(colors.white)
+    write("Server: ")
+    if vlib.isConnected() then
+        term.setTextColor(colors.green)
+        print("Connected")
+    else
+        term.setTextColor(colors.red)
+        print("DISCONNECTED")
+    end
+
     local w, h = term.getSize()
     term.setCursorPos(1, h - 1)
     term.setTextColor(colors.lightGray)
@@ -218,7 +229,8 @@ end
 local function mainLoop()
     local cfg = vlib.getConfig()
     local lastResult = nil
-    local heartbeatTimer = os.startTimer(30)
+    local tickTimer = os.startTimer(2)
+    local heartbeatCount = 0
 
     drawScreen(cfg, nil, false)
 
@@ -227,9 +239,15 @@ local function mainLoop()
 
         vlib.checkEvent(event, p1, p2)
 
-        if event == "timer" and p1 == heartbeatTimer then
-            vlib.heartbeat()
-            heartbeatTimer = os.startTimer(30)
+        if event == "timer" and p1 == tickTimer then
+            heartbeatCount = heartbeatCount + 1
+            if heartbeatCount >= 5 then
+                vlib.heartbeat()
+                heartbeatCount = 0
+            end
+            vlib.playAlarm()
+            drawScreen(cfg, lastResult, false)
+            tickTimer = os.startTimer(2)
         end
 
         if event == "redstone" then

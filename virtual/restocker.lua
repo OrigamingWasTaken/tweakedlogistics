@@ -247,14 +247,17 @@ local function mainLoop()
 
         drawStatus(cfg, current, status)
         vlib.heartbeat()
-        vlib.playAlarm()
         drawStatus(cfg, current, status)
 
         local waitTimer = os.startTimer(cfg.interval or 10)
+        local alarmTimer = os.startTimer(2)
         while true do
             local event, p1, p2 = os.pullEvent()
             if event == "timer" and p1 == waitTimer then
                 break
+            elseif event == "timer" and p1 == alarmTimer then
+                vlib.playAlarm()
+                alarmTimer = os.startTimer(2)
             end
             vlib.checkEvent(event, p1, p2)
         end
