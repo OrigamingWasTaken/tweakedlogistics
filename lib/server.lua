@@ -218,6 +218,16 @@ function server.broadcastUpdate()
     return count
 end
 
+function server.broadcastReconnect()
+    if not _modemSide then return 0 end
+    rednet.broadcast({ type = "reconnect" })
+    return true
+end
+
+function server.updateClient(clientId)
+    rednet.send(clientId, { type = "do_update" })
+end
+
 function server.getClients()
     local list = {}
     for id, client in pairs(_clients) do

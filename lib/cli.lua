@@ -50,8 +50,10 @@ local function printHelp()
     print("  nickname <inv> <name>")
     print("  nicknames     List all nicknames")
     print("  clients       Connected virtual blocks")
+    print("  reconnect     Reconnect all clients")
+    print("  update-client <id>  Update one client")
     printColor("System:", colors.yellow)
-    print("  update        Check for new version")
+    print("  update [force]  Check/install updates")
     print("  help          This screen")
     print("  exit          Stop and return to shell")
 end
@@ -324,6 +326,35 @@ local function cmdScan()
     printColor("Found " .. s.uniqueTypes .. " item types in " .. s.inventories .. " inventories (" .. s.lastScanMs .. "ms)", colors.green)
 end
 
+local function cmdReconnect()
+    if not _server then
+        print("Server not running.")
+        return
+    end
+    print("Broadcasting reconnect to all computers...")
+    _server.broadcastReconnect()
+    printColor("Reconnect sent.", colors.green)
+end
+
+local function cmdUpdateClient(args)
+    if not _server then
+        print("Server not running.")
+        return
+    end
+    local id = args[1]
+    if not id then
+        write("Client ID: ")
+        id = read()
+    end
+    local num = tonumber(id)
+    if not num then
+        printColor("Invalid ID.", colors.red)
+        return
+    end
+    _server.updateClient(num)
+    printColor("Update sent to #" .. num, colors.green)
+end
+
 local function cmdPanels()
     local panelConfig = _config.get("dashboard.panels") or {}
     local monitors = {}
@@ -526,6 +557,8 @@ local function dispatchCommand(cmd, args)
     elseif cmd == "scan" then cmdScan()
     elseif cmd == "panels" then cmdPanels()
     elseif cmd == "set-panel" then cmdSetPanel(args)
+    elseif cmd == "reconnect" then cmdReconnect()
+    elseif cmd == "update-client" then cmdUpdateClient(args)
     elseif cmd == "update" then cmdUpdate(args[1] == "force")
     elseif cmd == "exit" then return false
     else

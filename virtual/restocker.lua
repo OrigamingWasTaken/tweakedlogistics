@@ -176,9 +176,22 @@ local function drawStatus(cfg, current, status)
         print("Checking...")
     end
 
+    print("")
+    term.setTextColor(colors.white)
+    write("Server:      ")
+    if vlib.isConnected() then
+        term.setTextColor(colors.green)
+        print("Connected")
+    else
+        term.setTextColor(colors.red)
+        print("DISCONNECTED")
+    end
+
     term.setTextColor(colors.lightGray)
-    term.setCursorPos(1, 12)
+    local w, h = term.getSize()
+    term.setCursorPos(1, h - 1)
     print("Checking every " .. cfg.interval .. "s")
+    term.setCursorPos(1, h)
     print("Ctrl+T to stop")
 end
 
@@ -234,6 +247,8 @@ local function mainLoop()
 
         drawStatus(cfg, current, status)
         vlib.heartbeat()
+        vlib.playAlarm()
+        drawStatus(cfg, current, status)
 
         local waitTimer = os.startTimer(cfg.interval or 10)
         while true do

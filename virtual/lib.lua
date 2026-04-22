@@ -8,6 +8,9 @@ local _serverId = nil
 local _configPath = nil
 local _config = {}
 local _speaker = nil
+local _connected = false
+local _lastServerResponse = 0
+local _alarmActive = false
 
 local SOUNDS = {
     click = { name = "minecraft:ui.button.click", volume = 0.5, pitch = 1.0 },
@@ -88,9 +91,23 @@ local function handleUpdate()
 end
 
 function vlib.checkEvent(event, senderId, message)
-    if event == "rednet_message" and senderId == _serverId and type(message) == "table" then
-        if message.type == "do_update" then
-            handleUpdate()
+    if event == "rednet_message" and type(message) == "table" then
+        if senderId == _serverId then
+            if message.type == "do_update" then
+                handleUpdate()
+            elseif message.type == "reconnect" then
+                _connected = true
+                _lastServerResponse = os.epoch("utc")
+                _alarmActive = false
+                vlib.register(_blockType, _blockConfig)
+            end
+        elseif message.type == "reconnect" then
+            _serverId = senderId
+            _connected = true
+            _lastServerResponse = os.epoch("utc")
+            _alarmActive = false
+            vlib.saveConfig()
+            vlib.register(_blockType, _blockConfig)
         end
     end
 end
@@ -101,6 +118,16 @@ function vlib.receive(timeout)
         if message.type == "do_update" then
             handleUpdate()
         end
+        if message.type == "reconnect" then
+            _connected = true
+            _lastServerResponse = os.epoch("utc")
+            _alarmActive = false
+            vlib.register(_blockType, _blockConfig)
+            return nil
+        end
+        _connected = true
+        _lastServerResponse = os.epoch("utc")
+        _alarmActive = false
         return message
     end
     return nil
@@ -134,21 +161,49 @@ function vlib.register(blockType, config)
     })
     local reply = vlib.receive(5)
     if reply and reply.type == "config_ack" then
+        _connected = true
+        _lastServerResponse = os.epoch("utc")
         return true
     end
     return false
 end
 
 function vlib.heartbeat()
-    if _blockType then
-        vlib.send({
-            type = "register",
-            blockType = _blockType,
-            computerId = os.getComputerID(),
-            config = _blockConfig,
-            version = vlib.getVersion(),
-        })
+    if not _blockType then return end
+
+    vlib.send({
+        type = "register",
+        blockType = _blockType,
+        computerId = os.getComputerID(),
+        config = _blockConfig,
+        version = vlib.getVersion(),
+    })
+
+    local reply = vlib.receive(2)
+    if reply and reply.type == "config_ack" then
+        _connected = true
+        _lastServerResponse = os.epoch("utc")
+        _alarmActive = false
+    else
+        local elapsed = os.epoch("utc") - _lastServerResponse
+        if elapsed > 30000 then
+            _connected = false
+            if not _alarmActive and _speaker then
+                _alarmActive = true
+            end
+        end
     end
+end
+
+function vlib.isConnected()
+    return _connected
+end
+
+function vlib.playAlarm()
+    if not _alarmActive or not _speaker then return end
+    pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.0, 0.5)
+    sleep(0.5)
+    pcall(_speaker.playSound, "minecraft:block.note_block.bit", 1.0, 0.7)
 end
 
 function vlib.loadConfig(path)
