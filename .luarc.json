@@ -1,0 +1,33 @@
+{
+  "runtime": {
+    "version": "Lua 5.1"
+  },
+  "workspace": {
+    "library": [
+      "/home/marlon/Code/Lua/FriendsCC/types/cc-tweaked",
+      "/home/marlon/Code/Lua/FriendsCC/types/cc-tweaked/peripherals"
+    ]
+  },
+  "diagnostics": {
+    "globals": [
+      "fs",
+      "textutils",
+      "peripheral",
+      "os",
+      "term",
+      "http",
+      "rednet",
+      "turtle",
+      "colors",
+      "parallel",
+      "sleep",
+      "shell",
+      "read",
+      "write",
+      "print",
+      "printError",
+      "dofile",
+      "unpack"
+    ]
+  }
+}
