@@ -173,11 +173,14 @@ local function drawItemName(mon, x, y, w, item, bg)
     end
 end
 
-local function panelStockOverview(mon, w, h)
+local _rowItems = {}
+
+local function panelStockOverview(mon, w, h, monName)
     header(mon, w, " Stock Overview", colors.blue, colors.gray)
 
     local items = _storage.getItems()
     local maxRows = h - 2
+    _rowItems[monName] = {}
 
     if #items == 0 then
         text(mon, 2, 3, "No items found", colors.lightGray, colors.black)
@@ -188,6 +191,8 @@ local function panelStockOverview(mon, w, h)
         local item = items[i]
         local row = i + 1
         local bg = i % 2 == 0 and colors.gray or colors.black
+
+        _rowItems[monName][row] = item
 
         local countStr = formatCount(item.count)
         local nameW = w - #countStr - 4
@@ -361,6 +366,96 @@ local PANEL_REGISTRY = {
     activity = panelActivity,
 }
 
+-- Item Detail Modal --
+
+local _modalItem = {}
+local _modalClose = {}
+
+local function drawModal(mon, w, h, item, monName)
+    local modalW = math.min(w - 4, 40)
+    local modalH = math.min(h - 4, 16)
+    local mx = math.floor((w - modalW) / 2) + 1
+    local my = math.floor((h - modalH) / 2) + 1
+
+    box(mon, mx, my, modalW, modalH, colors.gray)
+    box(mon, mx, my, modalW, 1, colors.blue)
+
+    local rarity = getItemRarity(item)
+    local nameColor = getRarityColor(rarity)
+    if item.customName then nameColor = colors.lightGray end
+
+    local title = item.displayName
+    if #title > modalW - 5 then
+        title = title:sub(1, modalW - 7) .. ".."
+    end
+    text(mon, mx + 1, my, title, nameColor, colors.blue)
+
+    local closeX = mx + modalW - 2
+    text(mon, closeX, my, "X", colors.red, colors.blue)
+    _modalClose[monName] = { x1 = closeX, y = my }
+
+    local row = my + 2
+    local contentW = modalW - 2
+
+    text(mon, mx + 1, row, item.name, colors.lightGray, colors.gray)
+    row = row + 1
+
+    if item.customName and item.baseName then
+        local realName = item.baseName:match(":(.+)") or item.baseName
+        text(mon, mx + 1, row, "Base: " .. realName:gsub("_", " "), colors.lightGray, colors.gray)
+        row = row + 1
+    end
+
+    row = row + 1
+    text(mon, mx + 1, row, "Count: ", colors.lightGray, colors.gray)
+    text(mon, mx + 8, row, tostring(item.count), colors.white, colors.gray)
+    row = row + 1
+
+    local rarityLabel = rarity:sub(1, 1):upper() .. rarity:sub(2)
+    text(mon, mx + 1, row, "Rarity: ", colors.lightGray, colors.gray)
+    text(mon, mx + 9, row, rarityLabel, getRarityColor(rarity), colors.gray)
+    row = row + 1
+
+    if item.enchantments and #item.enchantments > 0 then
+        row = row + 1
+        text(mon, mx + 1, row, "Enchantments:", colors.cyan, colors.gray)
+        row = row + 1
+        for _, ench in ipairs(item.enchantments) do
+            if row >= my + modalH - 1 then break end
+            local enchName = ench.displayName or ench.name or "?"
+            if type(enchName) == "string" then
+                if #enchName > contentW - 2 then
+                    enchName = enchName:sub(1, contentW - 4) .. ".."
+                end
+                text(mon, mx + 2, row, enchName, colors.lightBlue, colors.gray)
+                row = row + 1
+            end
+        end
+    end
+
+    if item.damage and item.maxDamage and item.maxDamage > 0 then
+        if row < my + modalH - 1 then
+            row = row + 1
+            local durability = item.maxDamage - item.damage
+            local pct = math.floor(durability / item.maxDamage * 100)
+            text(mon, mx + 1, row, "Durability: ", colors.lightGray, colors.gray)
+            local durColor = colors.green
+            if pct < 25 then durColor = colors.red
+            elseif pct < 50 then durColor = colors.yellow end
+            text(mon, mx + 13, row, durability .. "/" .. item.maxDamage .. " (" .. pct .. "%)", durColor, colors.gray)
+        end
+    end
+
+    if item.tags and row < my + modalH - 2 then
+        row = row + 1
+        local tagCount = 0
+        for _ in pairs(item.tags) do tagCount = tagCount + 1 end
+        if tagCount > 0 then
+            text(mon, mx + 1, row, "Tags: " .. tagCount, colors.lightGray, colors.gray)
+        end
+    end
+end
+
 -- Init and loop --
 
 function dashboard.init(core, storage, logistics, crafting, config)
@@ -371,51 +466,93 @@ function dashboard.init(core, storage, logistics, crafting, config)
     _config = config
 end
 
-local function renderPanel(mon, panelId)
+local function renderPanel(mon, panelId, monName)
     local w, h = mon.getSize()
     applyPalette(mon)
     clear(mon)
 
     local panelFn = PANEL_REGISTRY[panelId]
     if panelFn then
-        panelFn(mon, w, h)
+        panelFn(mon, w, h, monName)
     else
         text(mon, 2, 2, "Unknown panel:", colors.red, colors.black)
         text(mon, 2, 3, panelId or "nil", colors.white, colors.black)
     end
+
+    if _modalItem[monName] then
+        drawModal(mon, w, h, _modalItem[monName], monName)
+    end
+end
+
+local function renderAll()
+    local panelConfig = _config.get("dashboard.panels") or {}
+    local monitors = _core.findInventories("monitor")
+
+    if next(panelConfig) == nil then
+        for _, monName in ipairs(monitors) do
+            panelConfig[monName] = "stock_overview"
+        end
+    end
+
+    for monName, panelId in pairs(panelConfig) do
+        local mon = peripheral.wrap(monName)
+        if mon then
+            mon.setTextScale(0.5)
+            local ok, err = pcall(renderPanel, mon, panelId, monName)
+            if not ok then
+                pcall(function()
+                    mon.setBackgroundColor(colors.black)
+                    mon.setTextColor(colors.red)
+                    mon.clear()
+                    mon.setCursorPos(1, 1)
+                    mon.write("Panel error:")
+                    mon.setCursorPos(1, 2)
+                    mon.write(tostring(err):sub(1, 30))
+                end)
+            end
+        end
+    end
+end
+
+local function handleTouch(monName, tx, ty)
+    if _modalItem[monName] then
+        local close = _modalClose[monName]
+        if close and tx >= close.x1 and ty == close.y then
+            _modalItem[monName] = nil
+            _modalClose[monName] = nil
+            renderAll()
+        end
+        return
+    end
+
+    local rows = _rowItems[monName]
+    if rows and rows[ty] then
+        _modalItem[monName] = rows[ty]
+        renderAll()
+    end
 end
 
 function dashboard.loop()
+    local refreshTimer = os.startTimer(_config.get("dashboard.interval") or 1)
+
+    renderAll()
+
     while true do
-        local panelConfig = _config.get("dashboard.panels") or {}
-        local monitors = _core.findInventories("monitor")
+        local event, p1, p2, p3 = os.pullEvent()
 
-        if next(panelConfig) == nil then
-            for _, monName in ipairs(monitors) do
-                panelConfig[monName] = "stock_overview"
-            end
-        end
-
-        for monName, panelId in pairs(panelConfig) do
-            local mon = peripheral.wrap(monName)
-            if mon then
-                mon.setTextScale(0.5)
-                local ok, err = pcall(renderPanel, mon, panelId)
-                if not ok then
-                    pcall(function()
-                        mon.setBackgroundColor(colors.black)
-                        mon.setTextColor(colors.red)
-                        mon.clear()
-                        mon.setCursorPos(1, 1)
-                        mon.write("Panel error:")
-                        mon.setCursorPos(1, 2)
-                        mon.write(tostring(err):sub(1, 30))
-                    end)
+        if event == "timer" and p1 == refreshTimer then
+            for monName, item in pairs(_modalItem) do
+                local fresh = _storage.getItem(item.key)
+                if fresh then
+                    _modalItem[monName] = fresh
                 end
             end
-        end
+            renderAll()
+            refreshTimer = os.startTimer(_config.get("dashboard.interval") or 1)
 
-        sleep(_config.get("dashboard.interval") or 1)
+        elseif event == "monitor_touch" then
+            handleTouch(p1, p2, p3)
+        end
     end
 end
 
