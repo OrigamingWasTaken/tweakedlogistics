@@ -117,7 +117,7 @@ for _, f in ipairs(comp.files) do
         fs.delete(f.path)
     end
     print("  " .. f.path)
-    local resp = http.get(repo .. "/" .. f.remote)
+    local resp = http.get(repo .. "/" .. f.remote .. "?cb=" .. os.epoch("utc"))
     if resp then
         local content = resp.readAll()
         resp.close()

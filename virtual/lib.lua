@@ -67,7 +67,7 @@ local function handleUpdate()
     print("Update received from server!")
     print("Installing...")
 
-    local resp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
+    local resp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua?cb=" .. os.epoch("utc"))
     if resp then
         local code = resp.readAll()
         resp.close()

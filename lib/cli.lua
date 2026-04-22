@@ -389,7 +389,7 @@ local function cmdUpdate()
 
     print("")
     print("Updating server...")
-    local dlResp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
+    local dlResp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua?cb=" .. os.epoch("utc"))
     if not dlResp then
         printColor("Failed to download installer.", colors.red)
         return
