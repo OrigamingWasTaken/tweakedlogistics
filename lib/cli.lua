@@ -361,7 +361,20 @@ local function cmdUpdate()
     end
 
     print("")
-    shell.run("wget", "run", "https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
+    print("Downloading installer...")
+    local dlResp = http.get("https://raw.githubusercontent.com/OrigamingWasTaken/tweakedlogistics/main/install.lua")
+    if not dlResp then
+        printColor("Failed to download installer.", colors.red)
+        return
+    end
+    local code = dlResp.readAll()
+    dlResp.close()
+    local fn, err = loadstring(code, "install.lua")
+    if not fn then
+        printColor("Failed to load installer: " .. tostring(err), colors.red)
+        return
+    end
+    fn()
 end
 
 local function parseCommand(line)
