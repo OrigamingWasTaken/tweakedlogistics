@@ -11,6 +11,7 @@ local _speaker = nil
 local _connected = false
 local _lastServerResponse = 0
 local _alarmActive = false
+local _clientStatus = {}
 
 local SOUNDS = {
     click = { name = "minecraft:ui.button.click", volume = 0.5, pitch = 1.0 },
@@ -168,6 +169,10 @@ function vlib.register(blockType, config)
     return false
 end
 
+function vlib.setStatus(status)
+    _clientStatus = status or {}
+end
+
 function vlib.heartbeat()
     if not _blockType then return end
 
@@ -177,6 +182,7 @@ function vlib.heartbeat()
         computerId = os.getComputerID(),
         config = _blockConfig,
         version = vlib.getVersion(),
+        status = _clientStatus,
     })
 
     local reply = vlib.receive(2)

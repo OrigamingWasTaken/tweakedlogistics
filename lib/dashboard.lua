@@ -235,18 +235,14 @@ local function panelClients(mon, w, h, monName)
         return
     end
 
-    local rowsPerClient = 3
-    local maxClients = math.floor((h - 2) / rowsPerClient)
+    local maxRows = h - 2
+    local row = 2
 
-    for i = 1, math.min(#clients, maxClients) do
+    for i = 1, #clients do
         local client = clients[i]
-        local baseRow = 2 + (i - 1) * rowsPerClient
+        if row > maxRows then break end
+
         local bg = i % 2 == 0 and colors.gray or colors.black
-
-        _clientRows[monName][baseRow] = client
-        _clientRows[monName][baseRow + 1] = client
-        _clientRows[monName][baseRow + 2] = client
-
         local typeColor = TYPE_COLORS[client.blockType] or colors.white
         local icon = TYPE_ICONS[client.blockType] or "?"
         local shortType = (client.blockType or "unknown"):gsub("virtual_", "")
@@ -260,17 +256,17 @@ local function panelClients(mon, w, h, monName)
             statusColor = colors.red
         end
 
-        box(mon, 1, baseRow, w, rowsPerClient, bg)
+        local hasProgress = client.status and client.status.current and client.status.target
+        local rowCount = hasProgress and 4 or 3
 
-        text(mon, 2, baseRow, icon, typeColor, bg)
-        text(mon, 4, baseRow, "#" .. client.id .. " " .. shortType, colors.white, bg)
-        textRight(mon, 1, baseRow, w - 1, statusIcon, statusColor, bg)
+        for r = row, row + rowCount - 1 do
+            box(mon, 1, r, w, 1, bg)
+            _clientRows[monName][r] = client
+        end
 
-        local info = "Reqs: " .. formatCount(client.requestCount)
-        text(mon, 4, baseRow + 1, info, colors.lightGray, bg)
-
-        local ver = client.version and client.version:sub(1, 7) or "?"
-        textRight(mon, 1, baseRow + 1, w - 1, ver, colors.lightGray, bg)
+        text(mon, 2, row, icon, typeColor, bg)
+        text(mon, 4, row, "#" .. client.id .. " " .. shortType, colors.white, bg)
+        textRight(mon, 1, row, w - 1, statusIcon, statusColor, bg)
 
         if client.config then
             local detail = ""
@@ -280,8 +276,29 @@ local function panelClients(mon, w, h, monName)
                 detail = client.config.destination:match(":(.+)") or client.config.destination
             end
             if #detail > w - 5 then detail = detail:sub(1, w - 7) .. ".." end
-            text(mon, 4, baseRow + 2, detail, colors.lightBlue, bg)
+            text(mon, 4, row + 1, detail, colors.lightBlue, bg)
         end
+
+        if hasProgress then
+            local cur = client.status.current
+            local tgt = client.status.target
+            local pct = tgt > 0 and math.floor(cur / tgt * 100) or 0
+            local countStr = formatCount(cur) .. "/" .. formatCount(tgt) .. " " .. pct .. "%"
+            text(mon, 4, row + 2, countStr, colors.white, bg)
+
+            local barW = w - 4
+            local filled = tgt > 0 and math.floor((cur / tgt) * barW + 0.5) or 0
+            if filled > barW then filled = barW end
+            local barColor = colors.green
+            if pct < 50 then barColor = colors.red
+            elseif pct < 100 then barColor = colors.yellow end
+            progressBar(mon, 2, row + 3, barW, cur, tgt, barColor, colors.lightGray)
+        else
+            local info = "Reqs: " .. formatCount(client.requestCount)
+            text(mon, 4, row + 2, info, colors.lightGray, bg)
+        end
+
+        row = row + rowCount
     end
 end
 
@@ -510,7 +527,21 @@ local function drawClientModal(mon, w, h, client, monName)
         end
         if client.config.mode then
             text(mon, mx + 2, row, "Mode: " .. client.config.mode, colors.white, colors.gray)
+            row = row + 1
         end
+    end
+
+    if client.status and client.status.current and client.status.target then
+        row = row + 1
+        local cur = client.status.current
+        local tgt = client.status.target
+        local pct = tgt > 0 and math.floor(cur / tgt * 100) or 0
+        text(mon, mx + 1, row, "Stock: " .. cur .. "/" .. tgt .. " (" .. pct .. "%)", colors.white, colors.gray)
+        row = row + 1
+        local barW = modalW - 4
+        progressBar(mon, mx + 2, row, barW, cur, tgt,
+            pct >= 100 and colors.green or (pct >= 50 and colors.yellow or colors.red),
+            colors.lightGray)
     end
 end
 

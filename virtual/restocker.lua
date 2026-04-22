@@ -278,6 +278,7 @@ local function mainLoop()
         end
 
         drawStatus(cfg, current, status)
+        vlib.setStatus({ current = current, target = cfg.target, status = status })
         vlib.heartbeat()
         drawStatus(cfg, current, status)
 
