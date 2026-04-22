@@ -6,15 +6,17 @@ local _logistics = nil
 local _crafting = nil
 local _nicknames = nil
 local _server = nil
+local _dashboard = nil
 local _config = nil
 
-function cli.init(core, storage, logistics, crafting, nicknames, server, config)
+function cli.init(core, storage, logistics, crafting, nicknames, server, dashboard, config)
     _core = core
     _storage = storage
     _logistics = logistics
     _crafting = crafting
     _nicknames = nicknames
     _server = server
+    _dashboard = dashboard
     _config = config
 end
 
@@ -40,6 +42,9 @@ local function printHelp()
     print("                (asks: type, input, output)")
     print("  remove-processor <id>")
     print("  jobs          Active crafting jobs")
+    printColor("Dashboard:", colors.yellow)
+    print("  panels        Show monitor assignments")
+    print("  set-panel     Assign panel to monitor")
     printColor("Network:", colors.yellow)
     print("  inventories   All chests on network")
     print("  nickname <inv> <name>")
@@ -321,6 +326,86 @@ local function cmdScan()
     printColor("Found " .. s.uniqueTypes .. " item types in " .. s.inventories .. " inventories (" .. s.lastScanMs .. "ms)", colors.green)
 end
 
+local function cmdPanels()
+    local panelConfig = _config.get("dashboard.panels") or {}
+    local monitors = {}
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "monitor") then
+            table.insert(monitors, name)
+        end
+    end
+
+    if #monitors == 0 then
+        print("No monitors found.")
+        return
+    end
+
+    printColor(string.format("%-25s %s", "Monitor", "Panel"), colors.yellow)
+    for _, monName in ipairs(monitors) do
+        local panel = panelConfig[monName] or "stock_overview (default)"
+        local nick = _nicknames and _nicknames.get(monName)
+        local display = nick and (monName .. " (" .. nick .. ")") or monName
+        print(string.format("%-25s %s", display:sub(1, 25), panel))
+    end
+end
+
+local function cmdSetPanel(args)
+    local monName = args[1]
+    local panelId = args[2]
+
+    if not monName then
+        local monitors = {}
+        local names = peripheral.getNames()
+        for _, name in ipairs(names) do
+            if peripheral.hasType(name, "monitor") then
+                table.insert(monitors, name)
+            end
+        end
+        if #monitors == 0 then
+            print("No monitors found.")
+            return
+        end
+        printColor("Monitors:", colors.yellow)
+        for i, name in ipairs(monitors) do
+            print("  " .. i .. ". " .. name)
+        end
+        write("Pick monitor (number or name): ")
+        local input = read()
+        local num = tonumber(input)
+        if num and monitors[num] then
+            monName = monitors[num]
+        elseif input and input ~= "" then
+            monName = input
+        else
+            return
+        end
+    end
+
+    if not panelId then
+        local types = _dashboard.getPanelTypes()
+        printColor("Panel types:", colors.yellow)
+        for i, t in ipairs(types) do
+            print("  " .. i .. ". " .. t)
+        end
+        write("Pick panel (number or name): ")
+        local input = read()
+        local num = tonumber(input)
+        if num and types[num] then
+            panelId = types[num]
+        elseif input and input ~= "" then
+            panelId = input
+        else
+            return
+        end
+    end
+
+    local panelConfig = _config.get("dashboard.panels") or {}
+    panelConfig[monName] = panelId
+    _config.set("dashboard.panels", panelConfig)
+    printColor("Set " .. monName .. " -> " .. panelId, colors.green)
+end
+
 local function cmdUpdate()
     local currentHash = nil
     if fs.exists("/tweakedlogistics/.version") then
@@ -437,6 +522,8 @@ local function dispatchCommand(cmd, args)
     elseif cmd == "nicknames" then cmdNicknames()
     elseif cmd == "clients" then cmdClients()
     elseif cmd == "scan" then cmdScan()
+    elseif cmd == "panels" then cmdPanels()
+    elseif cmd == "set-panel" then cmdSetPanel(args)
     elseif cmd == "update" then cmdUpdate()
     elseif cmd == "exit" then return false
     else

@@ -456,6 +456,31 @@ local function drawModal(mon, w, h, item, monName)
     end
 end
 
+-- Speaker --
+
+local _speaker = nil
+
+local function findSpeaker()
+    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+        if peripheral.hasType(side, "speaker") then
+            _speaker = peripheral.wrap(side)
+            return
+        end
+    end
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "speaker") then
+            _speaker = peripheral.wrap(name)
+            return
+        end
+    end
+end
+
+local function playClick()
+    if not _speaker then return end
+    pcall(_speaker.playSound, "minecraft:ui.button.click", 0.5, 1.0)
+end
+
 -- Init and loop --
 
 function dashboard.init(core, storage, logistics, crafting, config)
@@ -464,6 +489,18 @@ function dashboard.init(core, storage, logistics, crafting, config)
     _logistics = logistics
     _crafting = crafting
     _config = config
+    findSpeaker()
+end
+
+local function findMonitors()
+    local result = {}
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "monitor") then
+            table.insert(result, name)
+        end
+    end
+    return result
 end
 
 local function renderPanel(mon, panelId, monName)
@@ -486,7 +523,7 @@ end
 
 local function renderAll()
     local panelConfig = _config.get("dashboard.panels") or {}
-    local monitors = _core.findInventories("monitor")
+    local monitors = findMonitors()
 
     if next(panelConfig) == nil then
         for _, monName in ipairs(monitors) do
@@ -520,6 +557,7 @@ local function handleTouch(monName, tx, ty)
         if close and tx >= close.x1 and ty == close.y then
             _modalItem[monName] = nil
             _modalClose[monName] = nil
+            playClick()
             renderAll()
         end
         return
@@ -528,32 +566,54 @@ local function handleTouch(monName, tx, ty)
     local rows = _rowItems[monName]
     if rows and rows[ty] then
         _modalItem[monName] = rows[ty]
+        playClick()
         renderAll()
     end
 end
 
 function dashboard.loop()
-    local refreshTimer = os.startTimer(_config.get("dashboard.interval") or 1)
-
     renderAll()
 
+    local needsRedraw = false
+
+    _core.event.on("storage:changed", function()
+        needsRedraw = true
+    end)
+
     while true do
-        local event, p1, p2, p3 = os.pullEvent()
+        local timerId = os.startTimer(_config.get("dashboard.interval") or 1)
 
-        if event == "timer" and p1 == refreshTimer then
-            for monName, item in pairs(_modalItem) do
-                local fresh = _storage.getItem(item.key)
-                if fresh then
-                    _modalItem[monName] = fresh
-                end
+        while true do
+            local event, p1, p2, p3 = os.pullEvent()
+
+            if event == "timer" and p1 == timerId then
+                break
+            elseif event == "monitor_touch" then
+                handleTouch(p1, p2, p3)
             end
-            renderAll()
-            refreshTimer = os.startTimer(_config.get("dashboard.interval") or 1)
-
-        elseif event == "monitor_touch" then
-            handleTouch(p1, p2, p3)
         end
+
+        for monName, item in pairs(_modalItem) do
+            local fresh = _storage.getItem(item.key)
+            if fresh then
+                _modalItem[monName] = fresh
+            end
+        end
+
+        renderAll()
+        needsRedraw = false
     end
+end
+
+-- Panel configuration helpers --
+
+function dashboard.getPanelTypes()
+    local list = {}
+    for name, _ in pairs(PANEL_REGISTRY) do
+        table.insert(list, name)
+    end
+    table.sort(list)
+    return list
 end
 
 return dashboard
