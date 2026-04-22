@@ -20,6 +20,9 @@ function logistics.init(core, storage, config)
             _ruleCounter = _ruleCounter + 1
             rule.id = rule.id or tostring(_ruleCounter)
             _rules[rule.id] = rule
+            if rule.destination then
+                _storage.excludeInventory(rule.destination)
+            end
         end
     end
 end
@@ -42,6 +45,7 @@ function logistics.addRule(rule)
     rule.id = id
     rule.priority = rule.priority or 0
     _rules[id] = rule
+    _storage.excludeInventory(rule.destination)
     saveRules()
     return id
 end
@@ -105,11 +109,10 @@ end
 local function countItemInInventory(invName, itemName)
     local total = 0
     local ok, contents = pcall(peripheral.call, invName, "list")
-    if ok and contents then
-        for _, slot in pairs(contents) do
-            if slot.name == itemName then
-                total = total + slot.count
-            end
+    if not ok or not contents then return -1 end
+    for _, slot in pairs(contents) do
+        if slot.name == itemName then
+            total = total + slot.count
         end
     end
     return total
@@ -146,12 +149,16 @@ local function fulfillRules()
 
     for _, rule in ipairs(sorted) do
         local current = countItemInInventory(rule.destination, rule.item)
-        rule._current = current
 
-        if current >= rule.target then
+        if current == -1 then
+            rule._status = "error"
+            rule._current = 0
+        elseif current >= rule.target then
+            rule._current = current
             rule._status = "fulfilled"
             _core.event.emit("logistics:fulfilled", rule.id, rule.item)
         else
+            rule._current = current
             local deficit = rule.target - current
             local key = findItemKey(rule.item)
 

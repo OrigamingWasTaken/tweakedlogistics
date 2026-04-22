@@ -199,16 +199,13 @@ function storage.scan()
     end)
 
     for _, entry in ipairs(delta.added) do
-        addActivity("add", entry.displayName, entry.count)
+        if not _recentExtracts[entry.key] then
+            addActivity("add", entry.displayName, entry.count)
+        end
     end
     for _, entry in ipairs(delta.removed) do
         if not _recentExtracts[entry.key] then
             addActivity("remove", entry.displayName, entry.count)
-        end
-    end
-    for _, entry in ipairs(delta.changed) do
-        if _recentExtracts[entry.key] then
-            _recentExtracts[entry.key] = nil
         end
     end
     _recentExtracts = {}
