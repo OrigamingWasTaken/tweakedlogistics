@@ -404,7 +404,7 @@ local function cmdSetPanel(args)
     printColor("Set " .. monName .. " -> " .. panelId, colors.green)
 end
 
-local function cmdUpdate()
+local function cmdUpdate(force)
     local currentHash = nil
     if fs.exists("/tweakedlogistics/.version") then
         local h = fs.open("/tweakedlogistics/.version", "r")
@@ -431,9 +431,13 @@ local function cmdUpdate()
 
     local latestHash = data.sha
 
-    if currentHash and currentHash == latestHash then
-        printColor("Already up to date.", colors.green)
+    if currentHash and currentHash == latestHash and not force then
+        printColor("Already up to date. Use 'update force' to reinstall.", colors.green)
         return
+    end
+
+    if force then
+        printColor("Forcing reinstall...", colors.yellow)
     end
 
     if currentHash then
@@ -522,7 +526,7 @@ local function dispatchCommand(cmd, args)
     elseif cmd == "scan" then cmdScan()
     elseif cmd == "panels" then cmdPanels()
     elseif cmd == "set-panel" then cmdSetPanel(args)
-    elseif cmd == "update" then cmdUpdate()
+    elseif cmd == "update" then cmdUpdate(args[1] == "force")
     elseif cmd == "exit" then return false
     else
         printColor("Unknown command: " .. cmd, colors.red)
