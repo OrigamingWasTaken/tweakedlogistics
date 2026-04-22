@@ -50,7 +50,7 @@ function vlib.send(msg)
 end
 
 function vlib.receive(timeout)
-    local senderId, message, protocol = rednet.receive(PROTOCOL, timeout)
+    local senderId, message = rednet.receive(nil, timeout)
     if senderId and senderId == _serverId then
         return message
     end
