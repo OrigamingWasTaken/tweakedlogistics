@@ -1,8 +1,10 @@
 local vlib = dofile("/tweakedlogistics/virtual/lib.lua")
+local rarity = dofile("/tweakedlogistics/lib/rarity.lua")
 
 local CONFIG_PATH = "/virtual_terminal.config"
 local BLOCK_TYPE = "virtual_terminal"
 
+-- Disk helpers --
 
 local function loadFromBarrel(cfg)
     if not cfg.inputBarrel or not cfg.driveInput then return false end
@@ -24,7 +26,7 @@ end
 
 local function drainToTarget(cfg, targetInv)
     if not cfg.driveOutput or not targetInv or not cfg.lockSide then return false end
-    local driveName = cfg.driveName or vlib.pickDrive()
+    local driveName = cfg.driveName
     redstone.setOutput(cfg.lockSide, false)
     for _ = 1, 20 do
         if not disk.isPresent(driveName) then break end
@@ -41,24 +43,163 @@ local function drainToTarget(cfg, targetInv)
     return true
 end
 
-local function ejectToBarrel(cfg)
-    return drainToTarget(cfg, cfg.outputBarrel)
+local function ejectToBarrel(cfg) return drainToTarget(cfg, cfg.outputBarrel) end
+local function returnToInput(cfg) return drainToTarget(cfg, cfg.inputBarrel) end
+local function ejectToReserve(cfg) return drainToTarget(cfg, cfg.reserveChest) end
+
+-- Monitor drawing --
+
+local _mon = nil
+local _monName = nil
+local _palette = {
+    bg = 0x0f0f14,
+    panel = 0x1a1b26,
+    border = 0x414868,
+    accent = 0x7aa2f7,
+    text = 0xa9b1d6,
+    green = 0x73daca,
+    red = 0xf7768e,
+    yellow = 0xe0af68,
+    cyan = 0x7dcfff,
+    purple = 0xbb9af7,
+    orange = 0xff9e64,
+}
+
+local function applyPalette(mon)
+    mon.setPaletteColor(colors.black, _palette.bg)
+    mon.setPaletteColor(colors.gray, _palette.panel)
+    mon.setPaletteColor(colors.lightGray, _palette.border)
+    mon.setPaletteColor(colors.blue, _palette.accent)
+    mon.setPaletteColor(colors.white, _palette.text)
+    mon.setPaletteColor(colors.green, _palette.green)
+    mon.setPaletteColor(colors.red, _palette.red)
+    mon.setPaletteColor(colors.yellow, _palette.yellow)
+    mon.setPaletteColor(colors.cyan, _palette.cyan)
+    mon.setPaletteColor(colors.purple, _palette.purple)
+    mon.setPaletteColor(colors.orange, _palette.orange)
 end
 
-local function returnToInput(cfg)
-    return drainToTarget(cfg, cfg.inputBarrel)
+local function mClear()
+    _mon.setBackgroundColor(colors.black)
+    _mon.clear()
 end
 
-local function ejectToReserve(cfg)
-    return drainToTarget(cfg, cfg.reserveChest)
+local function mText(x, y, str, fg, bg)
+    _mon.setCursorPos(x, y)
+    if bg then _mon.setBackgroundColor(bg) end
+    if fg then _mon.setTextColor(fg) end
+    _mon.write(str)
 end
+
+local function mBox(x, y, w, h, bg)
+    _mon.setBackgroundColor(bg)
+    for row = y, y + h - 1 do
+        _mon.setCursorPos(x, row)
+        _mon.write(string.rep(" ", w))
+    end
+end
+
+local function mCenter(y, str, fg, bg)
+    local w, _ = _mon.getSize()
+    local x = math.floor((w - #str) / 2) + 1
+    mText(x, y, str, fg, bg)
+end
+
+local function drawBranding(y)
+    local w, _ = _mon.getSize()
+    local brand = "TweakedLogistics"
+    local x = math.floor((w - #brand) / 2) + 1
+    mText(x, y, "T", colors.cyan, colors.black)
+    mText(x + 1, y, "weaked", colors.white, colors.black)
+    mText(x + 7, y, "L", colors.cyan, colors.black)
+    mText(x + 8, y, "ogistics", colors.white, colors.black)
+end
+
+local _buttons = {}
+
+local function drawButton(x, y, w, label, fg, bg, id)
+    mBox(x, y, w, 1, bg)
+    local lx = x + math.floor((w - #label) / 2)
+    mText(lx, y, label, fg, bg)
+    _buttons[id] = { x1 = x, x2 = x + w - 1, y = y }
+end
+
+local function checkButton(tx, ty)
+    for id, btn in pairs(_buttons) do
+        if tx >= btn.x1 and tx <= btn.x2 and ty == btn.y then
+            return id
+        end
+    end
+    return nil
+end
+
+-- Screens --
+
+local function drawIdle()
+    _buttons = {}
+    mClear()
+    local w, h = _mon.getSize()
+    drawBranding(2)
+    mCenter(4, string.rep("-", w - 4), colors.lightGray, colors.black)
+    mCenter(math.floor(h / 2), "Insert card...", colors.yellow, colors.black)
+    mCenter(h, "Server: " .. (vlib.isConnected() and "Connected" or "DISCONNECTED"),
+        vlib.isConnected() and colors.green or colors.red, colors.black)
+end
+
+local function drawCardPreview(response)
+    _buttons = {}
+    mClear()
+    local w, h = _mon.getSize()
+
+    drawBranding(1)
+    mCenter(3, response.label or "Card", colors.cyan, colors.black)
+    mCenter(4, string.rep("-", w - 4), colors.lightGray, colors.black)
+
+    local row = 6
+    if response.items then
+        for name, count in pairs(response.items) do
+            if count > 0 and row < h - 3 then
+                local displayName = (name:match(":(.+)") or name):gsub("_", " ")
+                mText(3, row, displayName, colors.white, colors.black)
+                local countStr = "x" .. tostring(count)
+                mText(w - #countStr, row, countStr, colors.cyan, colors.black)
+                row = row + 1
+            end
+        end
+    end
+
+    local btnW = math.floor((w - 6) / 2)
+    local btnY = h - 1
+    if response.cardType == "redemption" then
+        drawButton(2, btnY, btnW, "[Redeem]", colors.white, colors.green, "redeem")
+        drawButton(w - btnW, btnY, btnW, "[Eject]", colors.white, colors.red, "eject")
+    elseif response.cardType == "balance" then
+        drawButton(2, btnY, btnW, "[Withdraw]", colors.white, colors.green, "withdraw")
+        drawButton(w - btnW, btnY, btnW, "[Eject]", colors.white, colors.red, "eject")
+    end
+end
+
+local function drawProcessing(msg)
+    mClear()
+    local _, h = _mon.getSize()
+    drawBranding(1)
+    mCenter(math.floor(h / 2), msg, colors.yellow, colors.black)
+end
+
+local function drawResult(msg, ok)
+    mClear()
+    local _, h = _mon.getSize()
+    drawBranding(1)
+    mCenter(math.floor(h / 2), msg, ok and colors.green or colors.red, colors.black)
+end
+
+-- Setup --
 
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
     if not vlib.setupScreen("Terminal") then return false end
 
     local cfg = vlib.getConfig()
-
     term.setTextColor(colors.white)
     print("")
 
@@ -79,15 +220,49 @@ local function setup()
         cfg.driveName = vlib.pickDrive()
     end
 
+    if not cfg.monitorName then
+        local monitors = {}
+        local names = peripheral.getNames()
+        for _, name in ipairs(names) do
+            if peripheral.hasType(name, "monitor") then
+                table.insert(monitors, name)
+            end
+        end
+        for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+            if peripheral.hasType(side, "monitor") then
+                local already = false
+                for _, m in ipairs(monitors) do
+                    if m == side then already = true break end
+                end
+                if not already then table.insert(monitors, side) end
+            end
+        end
+        if #monitors == 1 then
+            cfg.monitorName = monitors[1]
+        elseif #monitors > 1 then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Available monitors:")
+            term.setTextColor(colors.white)
+            for i, m in ipairs(monitors) do
+                print("  " .. i .. ". " .. m)
+            end
+            write("Pick monitor: ")
+            local num = tonumber(read())
+            if num and monitors[num] then
+                cfg.monitorName = monitors[num]
+            else
+                cfg.monitorName = monitors[1]
+            end
+        end
+    end
+
     if (cfg.mode == "items" or cfg.mode == "both") and not cfg.outputChest then
         print("")
         term.setTextColor(colors.yellow)
         print("Select output chest for items:")
         term.setTextColor(colors.white)
-        local chest = vlib.pickInventory()
-        if chest then
-            cfg.outputChest = chest
-        end
+        cfg.outputChest = vlib.pickInventory()
     end
 
     if (cfg.mode == "items" or cfg.mode == "both") then
@@ -98,7 +273,6 @@ local function setup()
             term.setTextColor(colors.white)
             cfg.inputBarrel = vlib.pickInventory()
         end
-
         if not cfg.outputBarrel then
             print("")
             term.setTextColor(colors.yellow)
@@ -106,7 +280,6 @@ local function setup()
             term.setTextColor(colors.white)
             cfg.outputBarrel = vlib.pickInventory()
         end
-
         if not cfg.reserveChest then
             print("")
             term.setTextColor(colors.yellow)
@@ -114,7 +287,6 @@ local function setup()
             term.setTextColor(colors.white)
             cfg.reserveChest = vlib.pickInventory()
         end
-
         if not cfg.driveInput then
             print("")
             term.setTextColor(colors.yellow)
@@ -122,7 +294,6 @@ local function setup()
             term.setTextColor(colors.white)
             cfg.driveInput = vlib.pickInventory()
         end
-
         if not cfg.driveOutput then
             print("")
             term.setTextColor(colors.yellow)
@@ -130,13 +301,11 @@ local function setup()
             term.setTextColor(colors.white)
             cfg.driveOutput = vlib.pickInventory()
         end
-
         if not cfg.lockSide then
             write("Redstone lock side (back): ")
             local side = read()
             cfg.lockSide = (side and side ~= "") and side or "back"
         end
-
         redstone.setOutput(cfg.lockSide, true)
     end
 
@@ -149,9 +318,7 @@ local function setup()
         if not cfg.redstoneSide then
             write("Redstone side for door: ")
             local side = read()
-            if side and side ~= "" then
-                cfg.redstoneSide = side
-            end
+            if side and side ~= "" then cfg.redstoneSide = side end
         end
         if not cfg.redstoneDuration then
             cfg.redstoneDuration = 3
@@ -179,198 +346,120 @@ local function setup()
     return true
 end
 
-local function drawIdle(cfg)
-    term.clear()
-    term.setCursorPos(1, 1)
-    term.setTextColor(colors.cyan)
-    print("=== Terminal ===")
-    print("")
-    term.setTextColor(colors.white)
-    print("Zone: " .. (cfg.zone or "default"))
-    print("")
-    term.setTextColor(colors.yellow)
-    print("Insert card...")
-    local w, h = term.getSize()
-    term.setCursorPos(1, h)
-    term.setTextColor(colors.lightGray)
-    term.write("Server: " .. (vlib.isConnected() and "Connected" or "DISCONNECTED"))
-end
+-- Card handling --
 
-local function handleAccess(cfg, response)
-    term.clear()
-    term.setCursorPos(1, 1)
-    if response.granted then
-        term.setTextColor(colors.green)
-        print("ACCESS GRANTED")
-        print("")
-        term.setTextColor(colors.white)
-        print(response.label or "")
-        vlib.playSound("success")
-
-        if cfg.redstoneSide then
-            redstone.setOutput(cfg.redstoneSide, true)
-            sleep(response.duration or cfg.redstoneDuration or 3)
-            redstone.setOutput(cfg.redstoneSide, false)
-        else
-            sleep(3)
-        end
-    else
-        term.setTextColor(colors.red)
-        print("ACCESS DENIED")
-        vlib.playSound("error")
-        sleep(2)
-    end
-end
-
-local function handleRedemptionBalance(cfg, response, diskId, driveName)
-    term.clear()
-    term.setCursorPos(1, 1)
-    term.setTextColor(colors.cyan)
-    print("=== " .. (response.label or "Card") .. " ===")
-    print("")
-
-    if not response.items or next(response.items) == nil then
-        term.setTextColor(colors.lightGray)
-        print("Card is empty.")
-        sleep(2)
-        return
-    end
-
-    local itemList = {}
-    for name, count in pairs(response.items) do
-        if count > 0 then
-            table.insert(itemList, { name = name, count = count })
-        end
-    end
-
-    if #itemList == 0 then
-        term.setTextColor(colors.lightGray)
-        print("Card is empty.")
-        sleep(2)
-        return
-    end
-
+local function handleRedemption(cfg, response, diskId)
+    drawProcessing("Redeeming items...")
     local anyDelivered = false
 
-    if response.cardType == "redemption" then
-        term.setTextColor(colors.yellow)
-        print("Redeeming all items...")
-        print("")
-
-        for _, item in ipairs(itemList) do
-            local displayName = (item.name:match(":(.+)") or item.name):gsub("_", " ")
-            term.setTextColor(colors.white)
-            print("  " .. displayName .. " x" .. item.count)
-
+    for name, count in pairs(response.items or {}) do
+        if count > 0 then
             vlib.send({
                 type = "card_withdraw",
                 diskId = diskId,
-                item = item.name,
-                count = item.count,
+                item = name,
+                count = count,
             })
             local reply = vlib.receiveType("card_delivered", 10)
             if reply and reply.count and reply.count > 0 then
                 anyDelivered = true
-                term.setTextColor(colors.green)
-                print("    Delivered " .. reply.count .. "!")
-            elseif reply and reply.error then
-                term.setTextColor(colors.red)
-                print("    " .. reply.error)
-            elseif reply and reply.count == 0 then
-                term.setTextColor(colors.red)
-                print("    Not in stock!")
-            else
-                term.setTextColor(colors.red)
-                print("    No response")
             end
         end
+    end
 
-        print("")
-        if anyDelivered then
-            term.setTextColor(colors.green)
-            print("Done!")
-            vlib.playSound("success")
-            print("Reclaiming card...")
-            ejectToReserve(cfg)
-        else
-            term.setTextColor(colors.red)
-            print("Nothing delivered. Returning card...")
-            vlib.playSound("error")
-            returnToInput(cfg)
+    if anyDelivered then
+        drawResult("Items delivered!", true)
+        vlib.playSound("success")
+        ejectToReserve(cfg)
+    else
+        drawResult("Nothing in stock!", false)
+        vlib.playSound("error")
+        returnToInput(cfg)
+    end
+    sleep(3)
+end
+
+local function handleBalance(cfg, response, diskId)
+    drawCardPreview(response)
+
+    while true do
+        local event, p1, p2, p3 = os.pullEvent()
+        vlib.checkEvent(event, p1, p2)
+
+        if event == "monitor_touch" and p1 == _monName then
+            local btn = checkButton(p2, p3)
+            if btn == "eject" then
+                vlib.playSound("click")
+                drawProcessing("Ejecting card...")
+                ejectToBarrel(cfg)
+                sleep(1)
+                return
+            elseif btn == "withdraw" then
+                vlib.playSound("click")
+                drawProcessing("Withdrawing all items...")
+                local anyDelivered = false
+
+                for name, count in pairs(response.items or {}) do
+                    if count > 0 then
+                        vlib.send({
+                            type = "card_withdraw",
+                            diskId = diskId,
+                            item = name,
+                            count = count,
+                        })
+                        local reply = vlib.receiveType("card_delivered", 10)
+                        if reply and reply.count and reply.count > 0 then
+                            anyDelivered = true
+                        end
+                    end
+                end
+
+                if anyDelivered then
+                    drawResult("Items delivered!", true)
+                    vlib.playSound("success")
+                else
+                    drawResult("Nothing in stock!", false)
+                    vlib.playSound("error")
+                end
+                ejectToBarrel(cfg)
+                sleep(3)
+                return
+            end
         end
-        sleep(1)
-
-    elseif response.cardType == "balance" then
-        term.setTextColor(colors.yellow)
-        print("Available items:")
-        print("")
-        for i, item in ipairs(itemList) do
-            local displayName = (item.name:match(":(.+)") or item.name):gsub("_", " ")
-            term.setTextColor(colors.white)
-            print("  " .. i .. ". " .. displayName .. " (x" .. item.count .. ")")
-        end
-
-        print("")
-        write("Pick item (number): ")
-        local choice = tonumber(read())
-        if not choice or not itemList[choice] then
-            print("Cancelled.")
-            sleep(1)
-            return
-        end
-
-        local selected = itemList[choice]
-        write("How many? (max " .. selected.count .. "): ")
-        local amount = tonumber(read())
-        if not amount or amount <= 0 then
-            print("Cancelled.")
-            sleep(1)
-            return
-        end
-        if amount > selected.count then amount = selected.count end
-
-        print("")
-        print("Withdrawing...")
-        vlib.send({
-            type = "card_withdraw",
-            diskId = diskId,
-            item = selected.name,
-            count = amount,
-        })
-
-        local reply = vlib.receiveType("card_delivered", 10)
-        if reply and reply.count > 0 then
-            term.setTextColor(colors.green)
-            print("Delivered " .. reply.count .. "!")
-            vlib.playSound("success")
-        else
-            term.setTextColor(colors.red)
-            print("Delivery failed.")
-            vlib.playSound("error")
-        end
-
-        print("")
-        print("Ejecting card...")
-        ejectToBarrel(cfg)
-        sleep(1)
     end
 end
 
+-- Main loop --
+
 local function mainLoop()
     local cfg = vlib.getConfig()
-    local driveName = cfg.driveName or vlib.pickDrive()
+    local driveName = cfg.driveName
 
     if cfg.lockSide then
         redstone.setOutput(cfg.lockSide, true)
     end
 
+    if cfg.monitorName then
+        _monName = cfg.monitorName
+        _mon = peripheral.wrap(_monName)
+        if _mon then
+            _mon.setTextScale(1)
+            applyPalette(_mon)
+        end
+    end
+
+    if not _mon then
+        print("No monitor configured!")
+        return
+    end
+
     while true do
-        drawIdle(cfg)
+        drawIdle()
         local heartbeatTimer = os.startTimer(10)
         local pollTimer = os.startTimer(2)
 
         while true do
-            local event, p1, p2 = os.pullEvent()
+            local event, p1, p2, p3 = os.pullEvent()
             vlib.checkEvent(event, p1, p2)
 
             if event == "disk" then
@@ -378,7 +467,7 @@ local function mainLoop()
                 break
             elseif event == "timer" and p1 == heartbeatTimer then
                 vlib.heartbeat()
-                drawIdle(cfg)
+                drawIdle()
                 heartbeatTimer = os.startTimer(10)
             elseif event == "timer" and p1 == pollTimer then
                 loadFromBarrel(cfg)
@@ -395,13 +484,10 @@ local function mainLoop()
         else
             local diskId = disk.getID(driveName)
             if not diskId then
-                term.clear()
-                term.setCursorPos(1, 1)
-                term.setTextColor(colors.red)
-                print("Invalid disk. Returning...")
+                drawResult("Invalid disk", false)
                 vlib.playSound("error")
                 returnToInput(cfg)
-                sleep(1)
+                sleep(2)
             else
                 vlib.send({
                     type = "card_scan",
@@ -409,27 +495,58 @@ local function mainLoop()
                     terminalId = os.getComputerID(),
                 })
 
+                drawProcessing("Reading card...")
                 local response = vlib.receive(5)
+
                 if not response then
-                    term.clear()
-                    term.setCursorPos(1, 1)
-                    term.setTextColor(colors.red)
-                    print("Server not responding. Returning card...")
+                    drawResult("Server not responding", false)
                     returnToInput(cfg)
-                    sleep(1)
+                    sleep(2)
                 elseif response.type == "card_denied" then
-                    term.clear()
-                    term.setCursorPos(1, 1)
-                    term.setTextColor(colors.red)
-                    print("Card denied: " .. (response.reason or "unknown"))
+                    drawResult("Card denied", false)
                     vlib.playSound("error")
-                    print("Returning card...")
                     returnToInput(cfg)
-                    sleep(1)
+                    sleep(2)
                 elseif response.type == "card_access" then
-                    handleAccess(cfg, response)
+                    if response.granted then
+                        drawResult("ACCESS GRANTED", true)
+                        vlib.playSound("success")
+                        if cfg.redstoneSide then
+                            redstone.setOutput(cfg.redstoneSide, true)
+                            sleep(response.duration or cfg.redstoneDuration or 3)
+                            redstone.setOutput(cfg.redstoneSide, false)
+                        end
+                    else
+                        drawResult("ACCESS DENIED", false)
+                        vlib.playSound("error")
+                    end
+                    returnToInput(cfg)
+                    sleep(2)
                 elseif response.type == "card_data" then
-                    handleRedemptionBalance(cfg, response, diskId, driveName)
+                    if response.cardType == "redemption" then
+                        drawCardPreview(response)
+
+                        while true do
+                            local ev, ep1, ep2, ep3 = os.pullEvent()
+                            vlib.checkEvent(ev, ep1, ep2)
+                            if ev == "monitor_touch" and ep1 == _monName then
+                                local btn = checkButton(ep2, ep3)
+                                if btn == "redeem" then
+                                    vlib.playSound("click")
+                                    handleRedemption(cfg, response, diskId)
+                                    break
+                                elseif btn == "eject" then
+                                    vlib.playSound("click")
+                                    drawProcessing("Returning card...")
+                                    returnToInput(cfg)
+                                    sleep(1)
+                                    break
+                                end
+                            end
+                        end
+                    elseif response.cardType == "balance" then
+                        handleBalance(cfg, response, diskId)
+                    end
                 end
             end
         end
