@@ -150,8 +150,8 @@ for _, f in ipairs(comp.files) do
     if fs.exists(f.path) then
         fs.delete(f.path)
     end
-    print("  " .. f.path)
-    local resp = http.get(repo .. "/" .. f.remote .. "?cb=" .. os.epoch("utc"))
+    local url = repo .. "/" .. f.remote .. "?t=" .. tostring(os.epoch("utc")) .. "&r=" .. tostring(math.random(100000))
+    local resp = http.get(url, { ["Cache-Control"] = "no-cache" })
     if resp then
         local content = resp.readAll()
         resp.close()
@@ -160,9 +160,10 @@ for _, f in ipairs(comp.files) do
             h.write(content)
             h.close()
         end
+        print("  " .. f.path .. " (" .. #content .. "b)")
     else
         term.setTextColor(colors.red)
-        print("    Failed to download!")
+        print("  " .. f.path .. " FAILED!")
         term.setTextColor(colors.white)
     end
 end
