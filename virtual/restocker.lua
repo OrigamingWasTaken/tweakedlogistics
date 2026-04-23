@@ -39,6 +39,39 @@ local function listLocalInventories()
     return found
 end
 
+local function pickInventory()
+    local invs = listLocalInventories()
+    if #invs > 0 then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Available inventories:")
+        term.setTextColor(colors.white)
+        for i, inv in ipairs(invs) do
+            local label = inv.name
+            if inv.side then
+                label = label .. " (" .. inv.side .. ")"
+            end
+            print("  " .. i .. ". " .. label)
+        end
+        print("")
+        write("Pick inventory (number or name): ")
+        local input = read()
+        local num = tonumber(input)
+        if num and invs[num] then
+            return invs[num].name
+        elseif input and input ~= "" then
+            return resolveInventory(input)
+        end
+    else
+        write("Destination inventory name: ")
+        local input = read()
+        if input and input ~= "" then
+            return resolveInventory(input)
+        end
+    end
+    return nil
+end
+
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
     if not vlib.setupScreen("Restocker") then return false end
@@ -48,50 +81,32 @@ local function setup()
     term.setTextColor(colors.white)
     print("")
 
-    if not cfg.item then
-        write("Item to restock (e.g. minecraft:iron_ingot): ")
-        cfg.item = read()
-        if not cfg.item or cfg.item == "" then return false end
-    end
-
-    if not cfg.target then
-        write("Target count: ")
-        local num = tonumber(read())
-        if not num then return false end
-        cfg.target = num
-    end
-
     if not cfg.destination then
-        local invs = listLocalInventories()
-        if #invs > 0 then
-            print("")
-            term.setTextColor(colors.yellow)
-            print("Available inventories:")
-            term.setTextColor(colors.white)
-            for i, inv in ipairs(invs) do
-                local label = inv.name
-                if inv.side then
-                    label = label .. " (" .. inv.side .. ")"
-                end
-                print("  " .. i .. ". " .. label)
-            end
-            print("")
-            write("Pick inventory (number or name): ")
-            local input = read()
-            local num = tonumber(input)
-            if num and invs[num] then
-                cfg.destination = invs[num].name
-            elseif input and input ~= "" then
-                cfg.destination = resolveInventory(input)
-            else
-                return false
-            end
-        else
-            write("Destination inventory name: ")
-            cfg.destination = read()
-            if not cfg.destination or cfg.destination == "" then return false end
-            cfg.destination = resolveInventory(cfg.destination)
+        cfg.destination = pickInventory()
+        if not cfg.destination then return false end
+    end
+
+    if not cfg.slots then
+        cfg.slots = {}
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Add items to restock (blank to finish):")
+        term.setTextColor(colors.white)
+        for i = 1, 9 do
+            write("Item " .. i .. ": ")
+            local item = read()
+            if not item or item == "" then break end
+            write("Target count: ")
+            local count = tonumber(read())
+            if not count then break end
+            table.insert(cfg.slots, { item = item, target = count })
         end
+    end
+
+    if #cfg.slots == 0 then
+        term.setTextColor(colors.red)
+        print("No items configured!")
+        return false
     end
 
     if not cfg.interval then
@@ -100,9 +115,12 @@ local function setup()
 
     vlib.saveConfig()
 
+    local items = {}
+    for _, slot in ipairs(cfg.slots) do
+        table.insert(items, slot.item)
+    end
     local ok = vlib.register(BLOCK_TYPE, {
-        item = cfg.item,
-        target = cfg.target,
+        items = items,
         destination = cfg.destination,
     })
 
@@ -140,102 +158,6 @@ local function countItemInInventory(invName, itemName)
     return total
 end
 
-local function drawBar(w, current, target)
-    local barW = w - 4
-    local filled = target > 0 and math.floor((current / target) * barW + 0.5) or 0
-    if filled > barW then filled = barW end
-
-    local barColor
-    local pct = target > 0 and math.floor(current / target * 100) or 0
-    if pct >= 100 then barColor = colors.green
-    elseif pct >= 50 then barColor = colors.yellow
-    else barColor = colors.red end
-
-    term.setCursorPos(3, 9)
-    term.setBackgroundColor(barColor)
-    term.write(string.rep(" ", filled))
-    term.setBackgroundColor(colors.gray)
-    term.write(string.rep(" ", barW - filled))
-    term.setBackgroundColor(colors.black)
-end
-
-local function drawStatus(cfg, current, status)
-    term.clear()
-    term.setCursorPos(1, 1)
-
-    local w, h = term.getSize()
-    local pct = cfg.target > 0 and math.floor(current / cfg.target * 100) or 0
-    local needed = math.max(0, cfg.target - current)
-    local itemName = (cfg.item:match(":(.+)") or cfg.item):gsub("_", " ")
-
-    term.setTextColor(colors.cyan)
-    print("=== Virtual Restocker ===")
-    print("")
-
-    term.setTextColor(colors.white)
-    print("Item:    " .. itemName)
-
-    local destName = (cfg.destination:match(":(.+)") or cfg.destination)
-    print("Dest:    " .. destName)
-    print("")
-
-    term.setTextColor(colors.white)
-    write("Stock:   ")
-    if current >= cfg.target then
-        term.setTextColor(colors.green)
-    elseif current > 0 then
-        term.setTextColor(colors.yellow)
-    else
-        term.setTextColor(colors.red)
-    end
-    print(current .. " / " .. cfg.target .. "  " .. pct .. "%")
-
-    if needed > 0 then
-        term.setTextColor(colors.lightGray)
-        print("Need:    " .. needed .. " more")
-    else
-        term.setTextColor(colors.green)
-        print("Need:    Fully stocked!")
-    end
-    print("")
-
-    drawBar(w, current, cfg.target)
-    print("")
-    print("")
-
-    term.setTextColor(colors.white)
-    write("Status:  ")
-    if status == "ok" then
-        term.setTextColor(colors.green)
-        print("Stocked")
-    elseif status == "requesting" then
-        term.setTextColor(colors.yellow)
-        print("Requesting...")
-    elseif status == "short" then
-        term.setTextColor(colors.red)
-        print("Storage short")
-    else
-        term.setTextColor(colors.lightGray)
-        print("Checking...")
-    end
-
-    term.setTextColor(colors.white)
-    write("Server:  ")
-    if vlib.isConnected() then
-        term.setTextColor(colors.green)
-        print("Connected")
-    else
-        term.setTextColor(colors.red)
-        print("DISCONNECTED")
-    end
-
-    term.setTextColor(colors.lightGray)
-    term.setCursorPos(1, h - 1)
-    print("Every " .. cfg.interval .. "s | Ctrl+T to stop")
-    term.setCursorPos(1, h)
-    print("Ctrl+T to stop")
-end
-
 local function pullFromSources(destination, sources)
     local total = 0
     for _, source in ipairs(sources) do
@@ -250,46 +172,140 @@ local function pullFromSources(destination, sources)
     return total
 end
 
+local function drawBar(mon_y, w, current, target)
+    local barW = w - 4
+    local filled = target > 0 and math.floor((current / target) * barW + 0.5) or 0
+    if filled > barW then filled = barW end
+
+    local pct = target > 0 and math.floor(current / target * 100) or 0
+    local barColor
+    if pct >= 100 then barColor = colors.green
+    elseif pct >= 50 then barColor = colors.yellow
+    else barColor = colors.red end
+
+    term.setCursorPos(3, mon_y)
+    term.setBackgroundColor(barColor)
+    term.write(string.rep(" ", filled))
+    term.setBackgroundColor(colors.gray)
+    term.write(string.rep(" ", barW - filled))
+    term.setBackgroundColor(colors.black)
+end
+
+local function drawStatus(cfg, slotData, overallStatus)
+    term.clear()
+    term.setCursorPos(1, 1)
+    local w, h = term.getSize()
+
+    term.setTextColor(colors.cyan)
+    print("=== Virtual Restocker ===")
+
+    local destName = (cfg.destination:match(":(.+)") or cfg.destination)
+    term.setTextColor(colors.lightGray)
+    print("Dest: " .. destName)
+    print("")
+
+    local row = 4
+    for i, sd in ipairs(slotData) do
+        if row + 2 > h - 3 then break end
+        local itemName = (sd.item:match(":(.+)") or sd.item):gsub("_", " ")
+        local pct = sd.target > 0 and math.floor(sd.current / sd.target * 100) or 0
+
+        term.setCursorPos(1, row)
+        if sd.current >= sd.target then
+            term.setTextColor(colors.green)
+        elseif sd.current > 0 then
+            term.setTextColor(colors.yellow)
+        else
+            term.setTextColor(colors.red)
+        end
+        term.write(" " .. itemName .. " ")
+        term.setTextColor(colors.white)
+        term.write(sd.current .. "/" .. sd.target .. " " .. pct .. "%")
+        row = row + 1
+
+        drawBar(row, w, sd.current, sd.target)
+        row = row + 1
+    end
+
+    row = row + 1
+    if row <= h - 2 then
+        term.setCursorPos(1, row)
+        term.setTextColor(colors.white)
+        write("Status:  ")
+        if overallStatus == "ok" then
+            term.setTextColor(colors.green)
+            print("All stocked")
+        elseif overallStatus == "requesting" then
+            term.setTextColor(colors.yellow)
+            print("Requesting...")
+        elseif overallStatus == "short" then
+            term.setTextColor(colors.red)
+            print("Storage short")
+        end
+
+        term.setCursorPos(1, row + 1)
+        term.setTextColor(colors.white)
+        write("Server:  ")
+        if vlib.isConnected() then
+            term.setTextColor(colors.green)
+            print("Connected")
+        else
+            term.setTextColor(colors.red)
+            print("DISCONNECTED")
+        end
+    end
+
+    term.setTextColor(colors.lightGray)
+    term.setCursorPos(1, h)
+    term.write("Every " .. cfg.interval .. "s | Ctrl+T to stop")
+end
+
 local function mainLoop()
     local cfg = vlib.getConfig()
 
     while true do
-        local current = countItemInInventory(cfg.destination, cfg.item)
-        local status = "ok"
+        local slotData = {}
+        local overallStatus = "ok"
+        local statusItems = {}
 
-        if current < cfg.target then
-            status = "requesting"
-            drawStatus(cfg, current, status)
+        for _, slot in ipairs(cfg.slots) do
+            local current = countItemInInventory(cfg.destination, slot.item)
+            local sd = { item = slot.item, target = slot.target, current = current }
+            table.insert(slotData, sd)
 
-            local deficit = cfg.target - current
-            vlib.send({
-                type = "locate_items",
-                item = cfg.item,
-                count = deficit,
-            })
+            if current < slot.target then
+                local deficit = slot.target - current
+                drawStatus(cfg, slotData, "requesting")
 
-            local reply = vlib.receiveType("item_sources", 5)
-            if reply and #reply.sources > 0 then
-                local pulled = pullFromSources(cfg.destination, reply.sources)
-                if pulled >= deficit then
-                    status = "ok"
-                    vlib.playSound("success")
+                vlib.send({
+                    type = "locate_items",
+                    item = slot.item,
+                    count = deficit,
+                })
+
+                local reply = vlib.receiveType("item_sources", 5)
+                if reply and #reply.sources > 0 then
+                    local pulled = pullFromSources(cfg.destination, reply.sources)
+                    sd.current = countItemInInventory(cfg.destination, slot.item)
+                    if sd.current < sd.target then
+                        overallStatus = "short"
+                    end
                 else
-                    status = "short"
-                    vlib.playSound("alert")
+                    overallStatus = "short"
                 end
-            else
-                status = "short"
-                vlib.playSound("error")
             end
 
-            current = countItemInInventory(cfg.destination, cfg.item)
+            table.insert(statusItems, { item = sd.item, current = sd.current, target = sd.target })
         end
 
-        drawStatus(cfg, current, status)
-        vlib.setStatus({ current = current, target = cfg.target, status = status })
+        if overallStatus == "ok" then
+            vlib.playSound("success")
+        end
+
+        drawStatus(cfg, slotData, overallStatus)
+        vlib.setStatus({ slots = statusItems })
         vlib.heartbeat()
-        drawStatus(cfg, current, status)
+        drawStatus(cfg, slotData, overallStatus)
 
         local waitTimer = os.startTimer(cfg.interval or 10)
         local alarmTimer = os.startTimer(2)

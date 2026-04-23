@@ -256,10 +256,11 @@ local function panelClients(mon, w, h, monName)
             statusColor = colors.red
         end
 
-        local hasProgress = client.status and client.status.current and client.status.target
-        local rowCount = hasProgress and 4 or 3
+        local hasSlots = client.status and client.status.slots and #client.status.slots > 0
+        local slotCount = hasSlots and #client.status.slots or 0
+        local rowCount = 2 + (hasSlots and slotCount * 2 or 1)
 
-        for r = row, row + rowCount - 1 do
+        for r = row, math.min(row + rowCount - 1, h) do
             box(mon, 1, r, w, 1, bg)
             _clientRows[monName][r] = client
         end
@@ -267,38 +268,32 @@ local function panelClients(mon, w, h, monName)
         text(mon, 2, row, icon, typeColor, bg)
         text(mon, 4, row, "#" .. client.id .. " " .. shortType, colors.white, bg)
         textRight(mon, 1, row, w - 1, statusIcon, statusColor, bg)
+        row = row + 1
 
-        if client.config then
-            local detail = ""
-            if client.config.item then
-                detail = (client.config.item:match(":(.+)") or client.config.item):gsub("_", " ")
-            elseif client.config.destination then
-                detail = client.config.destination:match(":(.+)") or client.config.destination
+        if hasSlots then
+            for _, sd in ipairs(client.status.slots) do
+                if row + 1 > h then break end
+                local itemName = (sd.item:match(":(.+)") or sd.item):gsub("_", " ")
+                local pct = sd.target > 0 and math.floor(sd.current / sd.target * 100) or 0
+                local countStr = sd.current .. "/" .. sd.target
+                local nameW = w - #countStr - 6
+                if #itemName > nameW then itemName = itemName:sub(1, nameW - 2) .. ".." end
+
+                text(mon, 4, row, itemName, colors.lightBlue, bg)
+                textRight(mon, 1, row, w - 1, countStr .. " " .. pct .. "%", colors.white, bg)
+                row = row + 1
+
+                local barColor = colors.green
+                if pct < 50 then barColor = colors.red
+                elseif pct < 100 then barColor = colors.yellow end
+                progressBar(mon, 2, row, w - 4, sd.current, sd.target, barColor, colors.lightGray)
+                row = row + 1
             end
-            if #detail > w - 5 then detail = detail:sub(1, w - 7) .. ".." end
-            text(mon, 4, row + 1, detail, colors.lightBlue, bg)
-        end
-
-        if hasProgress then
-            local cur = client.status.current
-            local tgt = client.status.target
-            local pct = tgt > 0 and math.floor(cur / tgt * 100) or 0
-            local countStr = formatCount(cur) .. "/" .. formatCount(tgt) .. " " .. pct .. "%"
-            text(mon, 4, row + 2, countStr, colors.white, bg)
-
-            local barW = w - 4
-            local filled = tgt > 0 and math.floor((cur / tgt) * barW + 0.5) or 0
-            if filled > barW then filled = barW end
-            local barColor = colors.green
-            if pct < 50 then barColor = colors.red
-            elseif pct < 100 then barColor = colors.yellow end
-            progressBar(mon, 2, row + 3, barW, cur, tgt, barColor, colors.lightGray)
         else
             local info = "Reqs: " .. formatCount(client.requestCount)
-            text(mon, 4, row + 2, info, colors.lightGray, bg)
+            text(mon, 4, row, info, colors.lightGray, bg)
+            row = row + 1
         end
-
-        row = row + rowCount
     end
 end
 
