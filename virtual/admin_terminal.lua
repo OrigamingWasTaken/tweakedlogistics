@@ -37,9 +37,32 @@ local function setup()
         print("")
         term.setTextColor(colors.yellow)
         print("Select reserve chest (blank floppies):")
+        term.setTextColor(colors.white)
         local chest = vlib.pickInventory()
         if chest then
             cfg.reserveChest = chest
+        end
+    end
+
+    if not cfg.driveInput then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select drive input (hopper above drive):")
+        term.setTextColor(colors.white)
+        local inv = vlib.pickInventory()
+        if inv then
+            cfg.driveInput = inv
+        end
+    end
+
+    if not cfg.driveOutput then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select drive output (hopper below drive):")
+        term.setTextColor(colors.white)
+        local inv = vlib.pickInventory()
+        if inv then
+            cfg.driveOutput = inv
         end
     end
 
@@ -151,40 +174,19 @@ local function createCard(cfg)
     print("")
     local driveName = cfg.driveName
 
-    if not disk.isPresent(driveName) and cfg.reserveChest then
+    if not disk.isPresent(driveName) and cfg.driveInput and cfg.reserveChest then
         print("Loading floppy from reserve...")
-        local loaded = false
-
         local ok, contents = pcall(peripheral.call, cfg.reserveChest, "list")
         if ok and contents then
             for slot, _ in pairs(contents) do
                 local ok2, moved = pcall(
                     peripheral.call, cfg.reserveChest, "pushItems",
-                    driveName, slot, 1
+                    cfg.driveInput, slot, 1
                 )
-                if ok2 and moved and moved > 0 then loaded = true break end
+                if ok2 and moved and moved > 0 then break end
             end
         end
-
-        if not loaded then
-            local ok3, contents2 = pcall(peripheral.call, cfg.reserveChest, "list")
-            if ok3 and contents2 then
-                for slot, _ in pairs(contents2) do
-                    local ok4, moved2 = pcall(
-                        peripheral.call, driveName, "pullItems",
-                        cfg.reserveChest, slot, 1
-                    )
-                    if ok4 and moved2 and moved2 > 0 then loaded = true break end
-                end
-            end
-        end
-
-        sleep(0.5)
-        if not loaded then
-            term.setTextColor(colors.red)
-            print("Could not load floppy from reserve.")
-            print("Check modem connections.")
-        end
+        sleep(1)
     end
 
     if not disk.isPresent(driveName) then
@@ -398,10 +400,22 @@ local function revokeCard(cfg)
     print("Card revoked.")
     vlib.playSound("success")
 
-    print("")
-    term.setTextColor(colors.lightGray)
-    print("Remove the disk.")
-    while disk.isPresent(driveName) do sleep(0.5) end
+    if cfg.driveOutput and cfg.reserveChest then
+        print("Returning floppy to reserve...")
+        disk.eject(driveName)
+        sleep(0.5)
+        local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+        if ok and contents then
+            for slot, _ in pairs(contents) do
+                pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
+            end
+        end
+    else
+        print("")
+        term.setTextColor(colors.lightGray)
+        print("Remove the disk.")
+        while disk.isPresent(driveName) do sleep(0.5) end
+    end
 end
 
 local function mainLoop()

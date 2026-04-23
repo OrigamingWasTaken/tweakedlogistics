@@ -67,6 +67,17 @@ local function setup()
         end
     end
 
+    if (cfg.mode == "items" or cfg.mode == "both") and cfg.reserveChest and not cfg.driveOutput then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select drive output (hopper below drive):")
+        term.setTextColor(colors.white)
+        local inv = vlib.pickInventory()
+        if inv then
+            cfg.driveOutput = inv
+        end
+    end
+
     if (cfg.mode == "door" or cfg.mode == "both") then
         if not cfg.zone then
             write("Zone name (e.g. main_door): ")
@@ -211,13 +222,18 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
         print("Done!")
         vlib.playSound("success")
 
-        if driveName and cfg.reserveChest then
+        if driveName then
             print("Reclaiming card...")
-            pcall(peripheral.call, cfg.reserveChest, "pullItems", driveName, 1, 1)
-            sleep(0.5)
-        end
-        if driveName and disk.isPresent(driveName) then
             disk.eject(driveName)
+            sleep(0.5)
+            if cfg.driveOutput and cfg.reserveChest then
+                local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+                if ok and contents then
+                    for slot, _ in pairs(contents) do
+                        pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
+                    end
+                end
+            end
         end
         sleep(2)
 
