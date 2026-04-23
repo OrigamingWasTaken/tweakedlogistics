@@ -388,20 +388,23 @@ local function mainLoop()
             vlib.checkEvent(event, p1, p2)
 
             if event == "disk" then
+                sleep(0.5)
                 break
             elseif event == "timer" and p1 == heartbeatTimer then
                 vlib.heartbeat()
                 drawIdle(cfg)
                 heartbeatTimer = os.startTimer(10)
             elseif event == "timer" and p1 == pollTimer then
-                if loadFromBarrel(cfg) then
+                loadFromBarrel(cfg)
+                if disk.isPresent(driveName) then
+                    sleep(0.5)
                     break
                 end
                 pollTimer = os.startTimer(2)
             end
         end
 
-        if not driveName or not disk.isPresent(driveName) then
+        if not disk.isPresent(driveName) then
             sleep(0.5)
         else
             local diskId = disk.getID(driveName)
