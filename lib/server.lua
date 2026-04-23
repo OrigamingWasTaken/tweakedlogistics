@@ -260,14 +260,35 @@ local function handleCardWithdraw(senderId, msg)
     local client = _clients[senderId]
     local outputChest = client and client.config and client.config.outputChest
 
-    local actual = _cards.withdraw(msg.diskId, msg.item, msg.count)
-    if actual > 0 and outputChest then
-        local items = _storage.getItems()
-        for _, it in ipairs(items) do
-            if _core.matchesItem(it.name, msg.item) then
-                _storage.extract(it.key, actual, outputChest)
-                break
-            end
+    if not outputChest then
+        rednet.send(senderId, {
+            type = "card_delivered",
+            item = msg.item,
+            count = 0,
+            remaining = card.items or {},
+            reclaim = false,
+            error = "No output chest configured",
+        })
+        return
+    end
+
+    local storageItem = nil
+    local items = _storage.getItems()
+    for _, it in ipairs(items) do
+        if _core.matchesItem(it.name, msg.item) then
+            storageItem = it
+            break
+        end
+    end
+
+    local available = storageItem and storageItem.count or 0
+    local cardAmount = _cards.withdraw(msg.diskId, msg.item, math.min(msg.count, available))
+    local delivered = 0
+
+    if cardAmount > 0 and storageItem then
+        delivered = _storage.extract(storageItem.key, cardAmount, outputChest)
+        if delivered < cardAmount then
+            _cards.recharge(msg.diskId, msg.item, cardAmount - delivered)
         end
     end
 
@@ -279,16 +300,16 @@ local function handleCardWithdraw(senderId, msg)
         end
     end
 
-    if card.type == "redemption" and isEmpty then
+    if card.type == "redemption" and isEmpty and delivered > 0 then
         _cards.delete(msg.diskId)
     end
 
     rednet.send(senderId, {
         type = "card_delivered",
         item = msg.item,
-        count = actual,
+        count = delivered,
         remaining = updatedCard and updatedCard.items or {},
-        reclaim = card.type == "redemption" and isEmpty,
+        reclaim = card.type == "redemption" and isEmpty and delivered > 0,
     })
 end
 

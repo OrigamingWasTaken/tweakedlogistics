@@ -55,6 +55,18 @@ local function setup()
         end
     end
 
+    if (cfg.mode == "items" or cfg.mode == "both") and not cfg.reserveChest then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select reserve chest for used cards:")
+        print("(blank to eject instead)")
+        term.setTextColor(colors.white)
+        local chest = vlib.pickInventory()
+        if chest then
+            cfg.reserveChest = chest
+        end
+    end
+
     if (cfg.mode == "door" or cfg.mode == "both") then
         if not cfg.zone then
             write("Zone name (e.g. main_door): ")
@@ -184,22 +196,30 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
             local reply = vlib.receiveType("card_delivered", 10)
             if reply and reply.count > 0 then
                 term.setTextColor(colors.green)
-                print("    Delivered!")
+                print("    Delivered " .. reply.count .. "!")
+            elseif reply and reply.count == 0 then
+                term.setTextColor(colors.red)
+                print("    Not in stock!")
             else
                 term.setTextColor(colors.red)
-                print("    Failed")
+                print("    No response")
             end
         end
 
         print("")
         term.setTextColor(colors.green)
-        print("Done! Card reclaimed.")
+        print("Done!")
         vlib.playSound("success")
 
-        if driveName then
+        if driveName and cfg.reserveChest then
+            print("Reclaiming card...")
+            pcall(peripheral.call, cfg.reserveChest, "pullItems", driveName, 1, 1)
+            sleep(0.5)
+        end
+        if driveName and disk.isPresent(driveName) then
             disk.eject(driveName)
         end
-        sleep(3)
+        sleep(2)
 
     elseif response.cardType == "balance" then
         term.setTextColor(colors.yellow)
