@@ -153,6 +153,8 @@ local function createCard(cfg)
 
     if not disk.isPresent(driveName) and cfg.reserveChest then
         print("Loading floppy from reserve...")
+        local loaded = false
+
         local ok, contents = pcall(peripheral.call, cfg.reserveChest, "list")
         if ok and contents then
             for slot, _ in pairs(contents) do
@@ -160,10 +162,29 @@ local function createCard(cfg)
                     peripheral.call, cfg.reserveChest, "pushItems",
                     driveName, slot, 1
                 )
-                if ok2 and moved and moved > 0 then break end
+                if ok2 and moved and moved > 0 then loaded = true break end
             end
         end
+
+        if not loaded then
+            local ok3, contents2 = pcall(peripheral.call, cfg.reserveChest, "list")
+            if ok3 and contents2 then
+                for slot, _ in pairs(contents2) do
+                    local ok4, moved2 = pcall(
+                        peripheral.call, driveName, "pullItems",
+                        cfg.reserveChest, slot, 1
+                    )
+                    if ok4 and moved2 and moved2 > 0 then loaded = true break end
+                end
+            end
+        end
+
         sleep(0.5)
+        if not loaded then
+            term.setTextColor(colors.red)
+            print("Could not load floppy from reserve.")
+            print("Check modem connections.")
+        end
     end
 
     if not disk.isPresent(driveName) then

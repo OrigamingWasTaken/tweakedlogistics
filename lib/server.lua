@@ -102,6 +102,12 @@ local function handleRegister(senderId, msg)
     if msg.config and msg.config.destination then
         _storage.excludeInventory(msg.config.destination)
     end
+    if msg.config and msg.config.outputChest then
+        _storage.excludeInventory(msg.config.outputChest)
+    end
+    if msg.config and msg.config.reserveChest then
+        _storage.excludeInventory(msg.config.reserveChest)
+    end
 
     rednet.send(senderId, {
         type = "config_ack",
