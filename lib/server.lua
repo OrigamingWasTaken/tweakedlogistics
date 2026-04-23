@@ -26,6 +26,11 @@ function server.init(core, storage, logistics, crafting, nicknames, cards, confi
     _core.event.on("storage:changed", function(delta)
         server.broadcastStockUpdate()
     end)
+
+    local outputs = _config.get("storage.outputs") or {}
+    for _, chest in pairs(outputs) do
+        _storage.excludeInventory(chest)
+    end
 end
 
 local function findModem()
@@ -359,6 +364,14 @@ local function handleCardRevoke(senderId, msg)
     rednet.send(senderId, { type = "card_revoked", diskId = msg.diskId })
 end
 
+local function handleQueryOutputs(senderId, msg)
+    local outputs = _config.get("storage.outputs") or {}
+    rednet.send(senderId, {
+        type = "output_list",
+        outputs = outputs,
+    })
+end
+
 local function handleMessage(senderId, msg)
     if type(msg) ~= "table" or not msg.type then return end
 
@@ -384,6 +397,8 @@ local function handleMessage(senderId, msg)
         handleCardRecharge(senderId, msg)
     elseif msg.type == "card_revoke" then
         handleCardRevoke(senderId, msg)
+    elseif msg.type == "query_outputs" then
+        handleQueryOutputs(senderId, msg)
     end
 end
 
