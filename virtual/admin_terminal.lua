@@ -167,6 +167,23 @@ local function ejectToReserve(cfg)
     return true
 end
 
+local function returnToInput(cfg)
+    if not cfg.driveOutput or not cfg.inputBarrel or not cfg.lockSide then return false end
+    redstone.setOutput(cfg.lockSide, false)
+    sleep(0.5)
+    disk.eject(cfg.driveName)
+    sleep(0.5)
+    redstone.setOutput(cfg.lockSide, true)
+    sleep(0.3)
+    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.inputBarrel, slot)
+        end
+    end
+    return true
+end
+
 local function drawMenu()
     term.clear()
     term.setCursorPos(1, 1)
@@ -186,6 +203,10 @@ local function drawMenu()
 end
 
 local function waitForDisk(driveName)
+    for _ = 1, 10 do
+        if disk.isPresent(driveName) then return true end
+        sleep(0.5)
+    end
     if disk.isPresent(driveName) then return true end
     term.setTextColor(colors.yellow)
     print("Insert a floppy disk...")
@@ -269,6 +290,11 @@ local function createCard(cfg)
         end
     end
 
+    for _ = 1, 10 do
+        if disk.isPresent(driveName) then break end
+        sleep(0.5)
+    end
+
     if not disk.isPresent(driveName) then
         waitForDisk(driveName)
     end
@@ -276,8 +302,9 @@ local function createCard(cfg)
     local diskId = disk.getID(driveName)
     if not diskId then
         term.setTextColor(colors.red)
-        print("Can't read disk ID!")
-        sleep(2)
+        print("Can't read disk ID! Returning...")
+        returnToInput(cfg)
+        sleep(1)
         return
     end
 
@@ -318,8 +345,9 @@ local function rechargeCard(cfg)
     local diskId = disk.getID(driveName)
     if not diskId then
         term.setTextColor(colors.red)
-        print("Can't read disk ID!")
-        sleep(2)
+        print("Can't read disk ID! Returning...")
+        returnToInput(cfg)
+        sleep(1)
         return
     end
 
@@ -402,8 +430,9 @@ local function viewCard(cfg)
     local diskId = disk.getID(driveName)
     if not diskId then
         term.setTextColor(colors.red)
-        print("Can't read disk ID!")
-        sleep(2)
+        print("Can't read disk ID! Returning...")
+        returnToInput(cfg)
+        sleep(1)
         return
     end
 
@@ -464,8 +493,9 @@ local function revokeCard(cfg)
     local diskId = disk.getID(driveName)
     if not diskId then
         term.setTextColor(colors.red)
-        print("Can't read disk ID!")
-        sleep(2)
+        print("Can't read disk ID! Returning...")
+        returnToInput(cfg)
+        sleep(1)
         return
     end
 
