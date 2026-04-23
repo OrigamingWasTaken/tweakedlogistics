@@ -10,7 +10,6 @@ local _crafting = nil
 local _nicknames = nil
 local _config = nil
 local _clients = {}
-local _modemSide = nil
 local _pending = {}
 local _cards = nil
 
@@ -33,13 +32,15 @@ function server.init(core, storage, logistics, crafting, nicknames, cards, confi
     end
 end
 
-local function findModem()
+local function openAllModems()
+    local found = false
     for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
         if peripheral.hasType(side, "modem") then
-            return side
+            rednet.open(side)
+            found = true
         end
     end
-    return nil
+    return found
 end
 
 function server.broadcastStockUpdate()
@@ -414,7 +415,6 @@ function server.broadcastUpdate()
 end
 
 function server.broadcastReconnect()
-    if not _modemSide then return 0 end
     rednet.broadcast({ type = "reconnect" })
     return true
 end
@@ -481,12 +481,10 @@ function server.getClients()
 end
 
 function server.loop()
-    _modemSide = findModem()
-    if not _modemSide then
+    if not openAllModems() then
         while true do sleep(30) end
     end
 
-    rednet.open(_modemSide)
     rednet.host(PROTOCOL, HOST)
 
     while true do
