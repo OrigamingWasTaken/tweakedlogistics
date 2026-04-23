@@ -446,16 +446,22 @@ local function mainLoop()
                 draw()
             end
         elseif event == "char" then
-            if _modal and _modalTyping then
+            if _modal then
                 local d = tonumber(p1)
-                if d then _modalCount = _modalCount * 10 + d end
+                if d then
+                    if not _modalTyping then
+                        _modalTyping = true
+                        _modalCount = 0
+                    end
+                    _modalCount = _modalCount * 10 + d
+                end
                 draw()
             elseif _searchFocused then
                 _searchText = _searchText .. p1
                 _page = 1
                 filterItems()
                 draw()
-            elseif not _modal and not _showOutputList then
+            elseif not _showOutputList then
                 _searchFocused = true
                 _searchText = p1
                 _page = 1
@@ -487,11 +493,21 @@ local function mainLoop()
             elseif p1 == keys.backspace then
                 if _modal and _modalTyping then
                     _modalCount = math.floor(_modalCount / 10)
+                elseif _modal then
+                    -- ignore
                 elseif _searchFocused and #_searchText > 0 then
                     _searchText = _searchText:sub(1, #_searchText - 1)
                     _page = 1
                     filterItems()
                 end
+                draw()
+            elseif _modal and (p1 == keys.left or p1 == keys.a) then
+                _modalCount = math.max(1, _modalCount - 1)
+                _modalTyping = false
+                draw()
+            elseif _modal and (p1 == keys.right or p1 == keys.d) then
+                _modalCount = math.min(_modal.count or 64, _modalCount + 1)
+                _modalTyping = false
                 draw()
             elseif p1 == keys.up then
                 if _showOutputList then
