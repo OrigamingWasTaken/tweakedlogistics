@@ -99,14 +99,16 @@ local function handleRegister(senderId, msg)
         itemsMoved = existing and existing.itemsMoved or 0,
     }
 
-    if msg.config and msg.config.destination then
-        _storage.excludeInventory(msg.config.destination)
-    end
-    if msg.config and msg.config.outputChest then
-        _storage.excludeInventory(msg.config.outputChest)
-    end
-    if msg.config and msg.config.reserveChest then
-        _storage.excludeInventory(msg.config.reserveChest)
+    if msg.config then
+        local excludeKeys = {
+            "destination", "outputChest", "reserveChest",
+            "inputBarrel", "outputBarrel", "driveInput", "driveOutput",
+        }
+        for _, key in ipairs(excludeKeys) do
+            if msg.config[key] then
+                _storage.excludeInventory(msg.config[key])
+            end
+        end
     end
 
     rednet.send(senderId, {

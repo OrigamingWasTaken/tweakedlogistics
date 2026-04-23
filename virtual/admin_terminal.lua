@@ -69,7 +69,13 @@ local function setup()
 
     vlib.saveConfig()
 
-    local ok = vlib.register(BLOCK_TYPE, {})
+    local ok = vlib.register(BLOCK_TYPE, {
+        reserveChest = cfg.reserveChest,
+        inputBarrel = cfg.inputBarrel,
+        outputBarrel = cfg.outputBarrel,
+        driveInput = cfg.driveInput,
+        driveOutput = cfg.driveOutput,
+    })
 
     if ok then
         term.setTextColor(colors.green)

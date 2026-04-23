@@ -330,6 +330,11 @@ local function setup()
     local ok = vlib.register(BLOCK_TYPE, {
         zone = cfg.zone,
         outputChest = cfg.outputChest,
+        inputBarrel = cfg.inputBarrel,
+        outputBarrel = cfg.outputBarrel,
+        reserveChest = cfg.reserveChest,
+        driveInput = cfg.driveInput,
+        driveOutput = cfg.driveOutput,
         redstoneSide = cfg.redstoneSide,
         redstoneDuration = cfg.redstoneDuration,
     })
