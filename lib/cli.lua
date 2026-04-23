@@ -48,6 +48,8 @@ local function printHelp()
     print("  reconnect     Reconnect all clients")
     print("  update-client <id>  Update one client")
     printColor("System:", colors.yellow)
+    print("  set <key> <value>  Set config value")
+    print("  get <key>       Get config value")
     print("  update [force]  Check/install updates")
     print("  help          This screen")
     print("  exit          Stop and return to shell")
@@ -376,6 +378,48 @@ local function cmdSetPanel(args)
     printColor("Set " .. monName .. " -> " .. panelId, colors.green)
 end
 
+local function cmdSet(args)
+    local key = args[1]
+    local value = args[2]
+    if not key then
+        write("Key: ")
+        key = read()
+    end
+    if not key or key == "" then return end
+    if not value then
+        write("Value: ")
+        value = read()
+    end
+    if not value or value == "" then return end
+
+    local parsed = tonumber(value)
+    if parsed then
+        value = parsed
+    elseif value == "true" then
+        value = true
+    elseif value == "false" then
+        value = false
+    end
+
+    _config.set(key, value)
+    printColor("Set " .. key .. " = " .. tostring(value), colors.green)
+end
+
+local function cmdGet(args)
+    local key = args[1]
+    if not key then
+        write("Key: ")
+        key = read()
+    end
+    if not key or key == "" then return end
+    local value = _config.get(key)
+    if value == nil then
+        printColor(key .. " is not set", colors.lightGray)
+    else
+        print(key .. " = " .. tostring(value))
+    end
+end
+
 local function cmdUpdate(force)
     local currentHash = nil
     if fs.exists("/tweakedlogistics/.version") then
@@ -497,6 +541,8 @@ local function dispatchCommand(cmd, args)
     elseif cmd == "set-panel" then cmdSetPanel(args)
     elseif cmd == "reconnect" then cmdReconnect()
     elseif cmd == "update-client" then cmdUpdateClient(args)
+    elseif cmd == "set" then cmdSet(args)
+    elseif cmd == "get" then cmdGet(args)
     elseif cmd == "update" then cmdUpdate(args[1] == "force")
     elseif cmd == "exit" then return false
     else
