@@ -12,16 +12,16 @@ local _selectedOutput = 1
 local _searchText = ""
 local _searchFocused = false
 local _page = 1
-local _extractingIdx = nil
-local _extractCount = 1
-local _typingCount = false
+local _selectedRow = 1
+local _modal = nil
+local _modalCount = 1
+local _modalTyping = false
 
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
     if not vlib.setupScreen("Storage Interface") then return false end
 
     local cfg = vlib.getConfig()
-
     term.setTextColor(colors.white)
     print("")
 
@@ -41,14 +41,14 @@ local function setup()
         print("Registered with server!")
     else
         term.setTextColor(colors.yellow)
-        print("Server did not acknowledge, continuing anyway...")
+        print("Server did not acknowledge...")
     end
 
     sleep(1)
     return true
 end
 
-local function getItemsPerPage()
+local function perPage()
     local _, h = term.getSize()
     return h - 4
 end
@@ -60,18 +60,19 @@ local function filterItems()
         if query == "" then
             table.insert(_filtered, item)
         else
-            local name = (item.displayName or item.name or ""):lower()
+            local name = (item.displayName or ""):lower()
             local id = (item.name or ""):lower()
             if name:find(query, 1, true) or id:find(query, 1, true) then
                 table.insert(_filtered, item)
             end
         end
     end
-    local maxPage = math.max(1, math.ceil(#_filtered / getItemsPerPage()))
-    if _page > maxPage then _page = maxPage end
+    local maxP = math.max(1, math.ceil(#_filtered / perPage()))
+    if _page > maxP then _page = maxP end
+    if _selectedRow > #_filtered then _selectedRow = math.max(1, #_filtered) end
 end
 
-local function getSelectedOutputChest()
+local function getOutputChest()
     if #_outputNames > 0 and _selectedOutput <= #_outputNames then
         return _outputs[_outputNames[_selectedOutput]]
     end
@@ -79,113 +80,144 @@ local function getSelectedOutputChest()
     return cfg.defaultOutput
 end
 
-local function getSelectedOutputName()
+local function getOutputName()
     if #_outputNames > 0 and _selectedOutput <= #_outputNames then
         return _outputNames[_selectedOutput]
     end
     return "Local"
 end
 
+local function drawModal()
+    if not _modal then return end
+    local w, h = term.getSize()
+    local mw = math.min(w - 4, 30)
+    local mh = 9
+    local mx = math.floor((w - mw) / 2) + 1
+    local my = math.floor((h - mh) / 2) + 1
+
+    for row = my, my + mh - 1 do
+        term.setCursorPos(mx, row)
+        term.setBackgroundColor(colors.gray)
+        term.write(string.rep(" ", mw))
+    end
+
+    local name = _modal.displayName or _modal.name or "?"
+    if #name > mw - 2 then name = name:sub(1, mw - 4) .. ".." end
+    term.setCursorPos(mx + 1, my)
+    term.setTextColor(colors.cyan)
+    term.setBackgroundColor(colors.gray)
+    term.write(name)
+
+    term.setCursorPos(mx + 1, my + 1)
+    term.setTextColor(colors.lightGray)
+    term.write("Available: " .. (_modal.count or 0))
+
+    term.setCursorPos(mx + 1, my + 3)
+    term.setTextColor(colors.white)
+    term.write("To: ")
+    term.setTextColor(colors.cyan)
+    local oName = getOutputName()
+    if #oName > mw - 6 then oName = oName:sub(1, mw - 8) .. ".." end
+    term.write(oName .. " [Tab]")
+
+    local countStr = tostring(_modalCount)
+    term.setCursorPos(mx + 2, my + 5)
+    term.setBackgroundColor(colors.red)
+    term.setTextColor(colors.white)
+    term.write(" - ")
+    term.setBackgroundColor(colors.gray)
+    term.setTextColor(colors.yellow)
+    if _modalTyping then
+        term.write(" " .. countStr .. "_ ")
+    else
+        term.write(" " .. countStr .. " ")
+    end
+    term.setBackgroundColor(colors.green)
+    term.setTextColor(colors.white)
+    term.write(" + ")
+    term.setBackgroundColor(colors.blue)
+    term.write(" All ")
+
+    term.setCursorPos(mx + 2, my + 7)
+    term.setBackgroundColor(colors.green)
+    term.setTextColor(colors.white)
+    term.write(" Send  ")
+    term.setBackgroundColor(colors.gray)
+    term.write(" ")
+    term.setBackgroundColor(colors.red)
+    term.write(" Cancel ")
+
+    term.setBackgroundColor(colors.black)
+end
+
 local function draw()
     local w, h = term.getSize()
-    local perPage = getItemsPerPage()
-    local maxPage = math.max(1, math.ceil(#_filtered / perPage))
+    local pp = perPage()
+    local maxP = math.max(1, math.ceil(#_filtered / pp))
 
     term.setBackgroundColor(colors.black)
     term.clear()
 
-    -- Search bar
+    -- Top bar
     term.setCursorPos(1, 1)
     term.setBackgroundColor(colors.gray)
-    term.setTextColor(colors.white)
     term.write(string.rep(" ", w))
     term.setCursorPos(1, 1)
+
     if _searchFocused then
         term.setTextColor(colors.yellow)
         term.write(" > " .. _searchText .. "_")
     elseif _searchText ~= "" then
         term.setTextColor(colors.white)
         term.write(" > " .. _searchText)
-        term.setCursorPos(w - 2, 1)
-        term.setTextColor(colors.red)
-        term.write("[X]")
     else
         term.setTextColor(colors.lightGray)
-        term.write(" Click to search...")
+        term.write(" Search...")
     end
 
-    -- Output selector
-    local outLabel = "[" .. getSelectedOutputName() .. "]"
-    if not _searchFocused and _searchText == "" then
-        term.setCursorPos(w - #outLabel, 1)
-        term.setTextColor(colors.cyan)
-        term.setBackgroundColor(colors.gray)
-        term.write(outLabel)
-    end
+    local outLabel = "[" .. getOutputName() .. "]"
+    if #outLabel > w / 3 then outLabel = "[" .. getOutputName():sub(1, math.floor(w/3) - 3) .. "..]" end
+    term.setCursorPos(w - #outLabel, 1)
+    term.setTextColor(colors.cyan)
+    term.write(outLabel)
 
-    -- Header line
+    -- Divider
     term.setCursorPos(1, 2)
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.lightGray)
     term.write(string.rep("-", w))
 
-    -- Item list
-    local startIdx = ((_page - 1) * perPage) + 1
-    for i = 0, perPage - 1 do
+    -- Items
+    local startIdx = ((_page - 1) * pp) + 1
+    for i = 0, pp - 1 do
         local idx = startIdx + i
         local row = 3 + i
         local item = _filtered[idx]
 
         term.setCursorPos(1, row)
-        term.setBackgroundColor(colors.black)
 
-        if not item then
+        if item then
+            local isSelected = (idx == _selectedRow)
+            term.setBackgroundColor(isSelected and colors.gray or colors.black)
             term.write(string.rep(" ", w))
-        elseif _extractingIdx == idx then
-            -- Extract mode
-            term.setTextColor(colors.white)
-            local name = (item.displayName or item.name or "?")
-            if #name > w - 30 then name = name:sub(1, w - 32) .. ".." end
-            term.write(" " .. name .. " ")
+            term.setCursorPos(1, row)
 
-            local countStr = tostring(_extractCount)
-            local cx = w - 22
-            term.setCursorPos(cx, row)
-            term.setBackgroundColor(colors.red)
-            term.setTextColor(colors.white)
-            term.write(" - ")
-            term.setBackgroundColor(colors.black)
-            term.setTextColor(colors.yellow)
-            if _typingCount then
-                term.write(" " .. countStr .. "_ ")
-            else
-                term.write(" " .. countStr .. " ")
-            end
-            term.setBackgroundColor(colors.green)
-            term.setTextColor(colors.white)
-            term.write(" + ")
-            term.write(" OK ")
-            term.setBackgroundColor(colors.red)
-            term.write(" X ")
-            term.setBackgroundColor(colors.black)
-        else
-            -- Normal row
             local nameColor = rarity.getItemColor(item)
             local name = item.displayName or item.name or "?"
-            local countStr = "x" .. tostring(item.count or 0)
-            local btnStr = "[>]"
-            local nameW = w - #countStr - #btnStr - 4
+            local countStr = tostring(item.count or 0)
+            local nameW = w - #countStr - 2
 
             if #name > nameW then name = name:sub(1, nameW - 2) .. ".." end
 
             term.setTextColor(nameColor)
             term.write(" " .. name)
-            term.setCursorPos(w - #countStr - #btnStr - 2, row)
+            term.setCursorPos(w - #countStr, row)
             term.setTextColor(colors.cyan)
             term.write(countStr)
-            term.setCursorPos(w - #btnStr, row)
-            term.setTextColor(colors.green)
-            term.write(btnStr)
+            term.setBackgroundColor(colors.black)
+        else
+            term.setBackgroundColor(colors.black)
+            term.write(string.rep(" ", w))
         end
     end
 
@@ -196,129 +228,150 @@ local function draw()
     term.setTextColor(colors.lightGray)
     term.write(string.rep("-", w))
 
-    if maxPage > 1 then
-        local pageStr = _page .. "/" .. maxPage
-        local px = math.floor((w - #pageStr) / 2)
-        term.setCursorPos(px, pageRow)
-        term.setTextColor(colors.white)
-        term.write(pageStr)
-
+    if maxP > 1 then
         if _page > 1 then
             term.setCursorPos(2, pageRow)
             term.setTextColor(colors.yellow)
             term.write("[<]")
         end
-        if _page < maxPage then
+        local pageStr = _page .. "/" .. maxP
+        term.setCursorPos(math.floor((w - #pageStr) / 2), pageRow)
+        term.setTextColor(colors.white)
+        term.write(pageStr)
+        if _page < maxP then
             term.setCursorPos(w - 3, pageRow)
             term.setTextColor(colors.yellow)
             term.write("[>]")
         end
     end
 
-    -- Status bar
+    -- Status
     term.setCursorPos(1, h)
     term.setBackgroundColor(colors.gray)
-    term.setTextColor(colors.white)
     term.write(string.rep(" ", w))
     term.setCursorPos(1, h)
     if vlib.isConnected() then
         term.setTextColor(colors.green)
-        term.write(" Connected")
+        term.write(" OK")
     else
         term.setTextColor(colors.red)
-        term.write(" DISCONNECTED")
+        term.write(" DISC")
     end
-    local countInfo = #_filtered .. " items "
-    term.setCursorPos(w - #countInfo, h)
+    local info = #_filtered .. " items "
+    term.setCursorPos(w - #info, h)
     term.setTextColor(colors.lightGray)
-    term.write(countInfo)
+    term.write(info)
 
     term.setBackgroundColor(colors.black)
+
+    if _modal then drawModal() end
+end
+
+local function openModal(item)
+    _modal = item
+    _modalCount = 1
+    _modalTyping = false
+    vlib.playSound("click")
+end
+
+local function closeModal()
+    _modal = nil
+    _modalTyping = false
+end
+
+local function sendExtract()
+    if not _modal then return end
+    local dest = getOutputChest()
+    if dest and _modalCount > 0 then
+        vlib.send({
+            type = "request_items",
+            item = _modal.name,
+            count = _modalCount,
+            destination = dest,
+        })
+        vlib.receiveType("items_delivered", 5)
+        vlib.playSound("success")
+    end
+    closeModal()
+end
+
+local function handleModalClick(x, y)
+    local w, h = term.getSize()
+    local mw = math.min(w - 4, 30)
+    local mh = 9
+    local mx = math.floor((w - mw) / 2) + 1
+    local my = math.floor((h - mh) / 2) + 1
+
+    -- Output selector row
+    if y == my + 3 then
+        _selectedOutput = _selectedOutput + 1
+        if _selectedOutput > #_outputNames then _selectedOutput = 1 end
+        return
+    end
+
+    -- Count row
+    if y == my + 5 then
+        if x >= mx + 2 and x <= mx + 4 then
+            _modalCount = math.max(1, _modalCount - 1)
+            _modalTyping = false
+        elseif x >= mx + 9 and x <= mx + 11 then
+            _modalCount = math.min(_modal.count or 64, _modalCount + 1)
+            _modalTyping = false
+        elseif x >= mx + 5 and x <= mx + 8 then
+            _modalTyping = true
+            _modalCount = 0
+        elseif x >= mx + 12 then
+            _modalCount = _modal.count or 64
+            _modalTyping = false
+        end
+        return
+    end
+
+    -- Buttons row
+    if y == my + 7 then
+        if x >= mx + 2 and x <= mx + 8 then
+            sendExtract()
+        elseif x >= mx + 10 then
+            closeModal()
+        end
+    end
 end
 
 local function handleClick(x, y)
     local w, h = term.getSize()
-    local perPage = getItemsPerPage()
-    local maxPage = math.max(1, math.ceil(#_filtered / perPage))
+    local pp = perPage()
+    local maxP = math.max(1, math.ceil(#_filtered / pp))
 
-    -- Search bar click (row 1)
+    if _modal then
+        handleModalClick(x, y)
+        return
+    end
+
+    -- Top bar
     if y == 1 then
-        if _searchText ~= "" and x >= w - 2 then
-            _searchText = ""
-            _searchFocused = false
-            _page = 1
-            filterItems()
+        local outLabel = "[" .. getOutputName() .. "]"
+        if x >= w - #outLabel then
+            _selectedOutput = _selectedOutput + 1
+            if _selectedOutput > #_outputNames then _selectedOutput = 1 end
         else
-            local outLabel = "[" .. getSelectedOutputName() .. "]"
-            if x >= w - #outLabel then
-                _selectedOutput = _selectedOutput + 1
-                if _selectedOutput > #_outputNames then
-                    _selectedOutput = 1
-                end
-            else
-                _searchFocused = true
-            end
+            _searchFocused = true
         end
         return
     end
 
-    -- Pagination (row h-1)
+    -- Pagination
     if y == h - 1 then
-        if x >= 2 and x <= 4 and _page > 1 then
-            _page = _page - 1
-        elseif x >= w - 3 and _page < maxPage then
-            _page = _page + 1
-        end
+        if x >= 2 and x <= 4 and _page > 1 then _page = _page - 1
+        elseif x >= w - 3 and _page < maxP then _page = _page + 1 end
         return
     end
 
-    -- Item rows (rows 3 to h-2)
+    -- Items — click anywhere on the row to open modal
     if y >= 3 and y <= h - 2 then
-        local idx = ((_page - 1) * perPage) + (y - 2)
-        local item = _filtered[idx]
-        if not item then return end
-
-        if _extractingIdx == idx then
-            local cx = w - 22
-            if x >= cx and x <= cx + 2 then
-                -- Minus
-                _extractCount = math.max(1, _extractCount - 1)
-                _typingCount = false
-            elseif x >= cx + 7 and x <= cx + 9 then
-                -- Plus
-                _extractCount = math.min(item.count or 64, _extractCount + 1)
-                _typingCount = false
-            elseif x >= cx + 3 and x <= cx + 6 then
-                -- Click number to type
-                _typingCount = true
-                _extractCount = 0
-            elseif x >= cx + 10 and x <= cx + 13 then
-                -- OK
-                local dest = getSelectedOutputChest()
-                if dest then
-                    vlib.send({
-                        type = "request_items",
-                        item = item.name,
-                        count = _extractCount,
-                        destination = dest,
-                    })
-                    vlib.receiveType("items_delivered", 5)
-                    vlib.playSound("success")
-                end
-                _extractingIdx = nil
-                _typingCount = false
-            elseif x >= cx + 14 then
-                -- Cancel
-                _extractingIdx = nil
-                _typingCount = false
-            end
-        else
-            if x >= w - 2 then
-                _extractingIdx = idx
-                _extractCount = 1
-                _typingCount = false
-                vlib.playSound("click")
-            end
+        local idx = ((_page - 1) * pp) + (y - 2)
+        if _filtered[idx] then
+            _selectedRow = idx
+            openModal(_filtered[idx])
         end
     end
 end
@@ -358,30 +411,27 @@ local function mainLoop()
         vlib.checkEvent(event, p1, p2)
 
         if event == "timer" and p1 == refreshTimer then
-            queryStock()
+            if not _modal then queryStock() end
             draw()
             refreshTimer = os.startTimer(5)
         elseif event == "timer" and p1 == heartbeatTimer then
             vlib.heartbeat()
             heartbeatTimer = os.startTimer(10)
-        elseif event == "mouse_click" then
+        elseif event == "mouse_click" or event == "monitor_touch" then
             _searchFocused = false
             handleClick(p2, p3)
             draw()
         elseif event == "mouse_scroll" then
-            local maxPage = math.max(1, math.ceil(#_filtered / getItemsPerPage()))
-            if p1 == 1 and _page < maxPage then
-                _page = _page + 1
-            elseif p1 == -1 and _page > 1 then
-                _page = _page - 1
+            if not _modal then
+                local maxP = math.max(1, math.ceil(#_filtered / perPage()))
+                if p1 == 1 and _page < maxP then _page = _page + 1
+                elseif p1 == -1 and _page > 1 then _page = _page - 1 end
+                draw()
             end
-            draw()
         elseif event == "char" then
-            if _typingCount then
-                local digit = tonumber(p1)
-                if digit then
-                    _extractCount = _extractCount * 10 + digit
-                end
+            if _modal and _modalTyping then
+                local d = tonumber(p1)
+                if d then _modalCount = _modalCount * 10 + d end
                 draw()
             elseif _searchFocused then
                 _searchText = _searchText .. p1
@@ -396,35 +446,51 @@ local function mainLoop()
                 draw()
             end
         elseif event == "key" then
-            if p1 == keys.backspace then
-                if _typingCount then
-                    _extractCount = math.floor(_extractCount / 10)
-                    if _extractCount < 1 then _extractCount = 0 end
-                    draw()
+            if p1 == keys.escape then
+                if _modal then closeModal()
+                elseif _searchFocused then _searchFocused = false end
+                draw()
+            elseif p1 == keys.enter then
+                if _modal then
+                    if _modalTyping then
+                        _modalTyping = false
+                        if _modalCount < 1 then _modalCount = 1 end
+                    else
+                        sendExtract()
+                    end
+                elseif _searchFocused then
+                    _searchFocused = false
+                elseif _filtered[_selectedRow] then
+                    openModal(_filtered[_selectedRow])
+                end
+                draw()
+            elseif p1 == keys.backspace then
+                if _modal and _modalTyping then
+                    _modalCount = math.floor(_modalCount / 10)
                 elseif _searchFocused and #_searchText > 0 then
                     _searchText = _searchText:sub(1, #_searchText - 1)
                     _page = 1
                     filterItems()
-                    draw()
                 end
-            elseif p1 == keys.escape then
-                if _extractingIdx then
-                    _extractingIdx = nil
-                    _typingCount = false
-                    draw()
-                elseif _searchFocused then
-                    _searchFocused = false
-                    draw()
+                draw()
+            elseif p1 == keys.up and not _modal then
+                if _selectedRow > 1 then
+                    _selectedRow = _selectedRow - 1
+                    local startIdx = ((_page - 1) * perPage()) + 1
+                    if _selectedRow < startIdx then _page = _page - 1 end
                 end
-            elseif p1 == keys.enter then
-                if _typingCount then
-                    _typingCount = false
-                    if _extractCount < 1 then _extractCount = 1 end
-                    draw()
-                elseif _searchFocused then
-                    _searchFocused = false
-                    draw()
+                draw()
+            elseif p1 == keys.down and not _modal then
+                if _selectedRow < #_filtered then
+                    _selectedRow = _selectedRow + 1
+                    local endIdx = _page * perPage()
+                    if _selectedRow > endIdx then _page = _page + 1 end
                 end
+                draw()
+            elseif p1 == keys.tab then
+                _selectedOutput = _selectedOutput + 1
+                if _selectedOutput > #_outputNames then _selectedOutput = 1 end
+                draw()
             end
         end
     end
