@@ -331,6 +331,8 @@ function storage.absorb()
                     end
                 end
                 if moved > 0 then
+                    local key = _core.itemKey(slotData.name, slotData.nbt)
+                    _recentExtracts[key] = true
                     storage.logActivity("add", (slotData.name:match(":(.+)") or slotData.name):gsub("_", " ") .. " (input)", moved)
                 end
             end
