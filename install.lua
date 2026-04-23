@@ -71,6 +71,27 @@ local components = {
         dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
         postInstall = "Reboot to begin setup.",
     },
+    {
+        name = "Storage Interface",
+        variant = "storage_interface",
+        files = {
+            { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
+            { remote = "lib/rarity.lua", path = "/tweakedlogistics/lib/rarity.lua" },
+            { remote = "virtual/storage_interface.lua", path = "/startup.lua" },
+        },
+        dirs = { "/tweakedlogistics", "/tweakedlogistics/lib", "/tweakedlogistics/virtual" },
+        postInstall = "Reboot to begin setup. Use an advanced computer.",
+    },
+    {
+        name = "Portable Storage Interface",
+        variant = "portable_interface",
+        files = {
+            { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
+            { remote = "virtual/portable_interface.lua", path = "/startup.lua" },
+        },
+        dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
+        postInstall = "Reboot to begin setup. Use a pocket computer.",
+    },
 }
 
 local comp = nil
