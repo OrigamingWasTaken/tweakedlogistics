@@ -55,9 +55,10 @@ local components = {
         variant = "terminal",
         files = {
             { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
+            { remote = "lib/rarity.lua", path = "/tweakedlogistics/lib/rarity.lua" },
             { remote = "virtual/terminal.lua", path = "/startup.lua" },
         },
-        dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
+        dirs = { "/tweakedlogistics", "/tweakedlogistics/lib", "/tweakedlogistics/virtual" },
         postInstall = "Reboot to begin setup.",
     },
     {
