@@ -278,6 +278,18 @@ function storage.clearActivity()
     _activity = {}
 end
 
+function storage.logActivity(action, itemName, count)
+    table.insert(_activity, 1, {
+        action = action,
+        item = itemName,
+        count = count,
+        timestamp = os.epoch("utc"),
+    })
+    while #_activity > _activityMax do
+        table.remove(_activity)
+    end
+end
+
 function storage.getStatus()
     return {
         inventories = _inventoryCount,

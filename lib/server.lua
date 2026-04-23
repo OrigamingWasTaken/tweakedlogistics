@@ -214,6 +214,15 @@ local function handleLocateItems(senderId, msg)
         remaining = remaining - take
     end
 
+    local totalLocated = count - remaining
+    if totalLocated > 0 then
+        local clientName = ""
+        if _clients[senderId] then
+            clientName = (_clients[senderId].blockType or ""):gsub("virtual_", "")
+        end
+        _storage.logActivity("extract", item.displayName .. " > " .. clientName, totalLocated)
+    end
+
     rednet.send(senderId, {
         type = "item_sources",
         item = itemName,
