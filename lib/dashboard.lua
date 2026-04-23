@@ -706,7 +706,7 @@ local function renderAll()
     for monName, panelId in pairs(panelConfig) do
         local mon = peripheral.wrap(monName)
         if mon then
-            mon.setTextScale(0.5)
+            mon.setTextScale(_config.get("dashboard.textScale") or 1)
             local ok, err = pcall(renderPanel, mon, panelId, monName)
             if not ok then
                 pcall(function()
