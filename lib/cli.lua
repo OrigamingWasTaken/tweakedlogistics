@@ -42,6 +42,14 @@ local function printHelp()
     printColor("Dashboard:", colors.yellow)
     print("  panels        Show monitor assignments")
     print("  set-panel     Assign panel to monitor")
+    printColor("Storage I/O:", colors.yellow)
+    print("  inputs            List dump chests")
+    print("  add-input <name>  Register dump chest")
+    print("  remove-input <name>")
+    print("  outputs           List output locations")
+    print("  add-output <nick> <chest>")
+    print("  remove-output <nick>")
+    print("  request           Extract items to output")
     printColor("Network:", colors.yellow)
     print("  inventories   All chests on network")
     print("  nickname <inv> <name>")
@@ -428,6 +436,152 @@ local function cmdCards()
     end
 end
 
+local function cmdInputs()
+    local inputs = _config.get("storage.inputs") or {}
+    if #inputs == 0 then
+        print("No input chests.")
+        return
+    end
+    printColor("Input chests (dump):", colors.yellow)
+    for i, name in ipairs(inputs) do
+        local nick = _nicknames and _nicknames.get(name)
+        if nick then
+            print("  " .. i .. ". " .. name .. " (" .. nick .. ")")
+        else
+            print("  " .. i .. ". " .. name)
+        end
+    end
+end
+
+local function cmdAddInput(args)
+    local name = args[1]
+    if not name then
+        write("Chest name: ")
+        name = read()
+    end
+    if not name or name == "" then return end
+    local inputs = _config.get("storage.inputs") or {}
+    table.insert(inputs, name)
+    _config.set("storage.inputs", inputs)
+    _storage.excludeInventory(name)
+    printColor("Input added: " .. name, colors.green)
+end
+
+local function cmdRemoveInput(args)
+    local name = args[1]
+    if not name then
+        write("Chest name: ")
+        name = read()
+    end
+    if not name or name == "" then return end
+    local inputs = _config.get("storage.inputs") or {}
+    local newInputs = {}
+    for _, n in ipairs(inputs) do
+        if n ~= name then
+            table.insert(newInputs, n)
+        end
+    end
+    _config.set("storage.inputs", newInputs)
+    printColor("Input removed: " .. name, colors.green)
+end
+
+local function cmdOutputs()
+    local outputs = _config.get("storage.outputs") or {}
+    local count = 0
+    for nick, chest in pairs(outputs) do
+        print("  " .. nick .. " -> " .. chest)
+        count = count + 1
+    end
+    if count == 0 then
+        print("No output locations.")
+    end
+end
+
+local function cmdAddOutput(args)
+    local nick = args[1]
+    local chest = args[2]
+    if not nick then
+        write("Nickname: ")
+        nick = read()
+    end
+    if not chest then
+        write("Chest name: ")
+        chest = read()
+    end
+    if not nick or nick == "" or not chest or chest == "" then return end
+    local outputs = _config.get("storage.outputs") or {}
+    outputs[nick] = chest
+    _config.set("storage.outputs", outputs)
+    _storage.excludeInventory(chest)
+    printColor("Output added: " .. nick .. " -> " .. chest, colors.green)
+end
+
+local function cmdRemoveOutput(args)
+    local nick = args[1]
+    if not nick then
+        write("Nickname: ")
+        nick = read()
+    end
+    if not nick or nick == "" then return end
+    local outputs = _config.get("storage.outputs") or {}
+    outputs[nick] = nil
+    _config.set("storage.outputs", outputs)
+    printColor("Output removed: " .. nick, colors.green)
+end
+
+local function cmdRequest(args)
+    local item = args[1]
+    local count = tonumber(args[2])
+    local dest = args[3]
+
+    if not item then
+        write("Item: ")
+        item = read()
+    end
+    if not count then
+        write("Count: ")
+        count = tonumber(read())
+    end
+    if not count then printColor("Invalid count.", colors.red) return end
+
+    if not dest then
+        local outputs = _config.get("storage.outputs") or {}
+        local names = {}
+        local chests = {}
+        for nick, chest in pairs(outputs) do
+            table.insert(names, nick)
+            table.insert(chests, chest)
+        end
+        if #names == 0 then
+            write("Destination chest: ")
+            dest = read()
+        else
+            printColor("Output locations:", colors.yellow)
+            for i, nick in ipairs(names) do
+                print("  " .. i .. ". " .. nick .. " (" .. chests[i] .. ")")
+            end
+            write("Pick (number or name): ")
+            local input = read()
+            local num = tonumber(input)
+            if num and chests[num] then
+                dest = chests[num]
+            elseif input and input ~= "" then
+                dest = outputs[input] or input
+            end
+        end
+    end
+
+    if not dest or dest == "" then return end
+
+    print("Requesting " .. count .. "x " .. item .. "...")
+    local extracted = _logistics.request(item, count, dest)
+    if extracted > 0 then
+        printColor("Delivered " .. extracted .. " items.", colors.green)
+    else
+        printColor("Nothing delivered.", colors.red)
+    end
+end
+
 local function cmdSet(args)
     local key = args[1]
     local value = args[2]
@@ -588,6 +742,13 @@ local function dispatchCommand(cmd, args)
     elseif cmd == "approve" then cmdApprove(args)
     elseif cmd == "revoke" then cmdRevoke(args)
     elseif cmd == "cards" then cmdCards()
+    elseif cmd == "inputs" then cmdInputs()
+    elseif cmd == "add-input" then cmdAddInput(args)
+    elseif cmd == "remove-input" then cmdRemoveInput(args)
+    elseif cmd == "outputs" then cmdOutputs()
+    elseif cmd == "add-output" then cmdAddOutput(args)
+    elseif cmd == "remove-output" then cmdRemoveOutput(args)
+    elseif cmd == "request" then cmdRequest(args)
     elseif cmd == "set" then cmdSet(args)
     elseif cmd == "get" then cmdGet(args)
     elseif cmd == "update" then cmdUpdate(args[1] == "force")
