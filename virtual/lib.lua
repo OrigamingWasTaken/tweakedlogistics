@@ -283,6 +283,46 @@ function vlib.resolveInventory(sideOrName)
     return sideOrName
 end
 
+function vlib.pickDrive()
+    local drives = {}
+    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+        if peripheral.hasType(side, "drive") then
+            table.insert(drives, side)
+        end
+    end
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "drive") then
+            local already = false
+            for _, d in ipairs(drives) do
+                if d == name then already = true break end
+            end
+            if not already then
+                table.insert(drives, name)
+            end
+        end
+    end
+
+    if #drives == 0 then return nil end
+    if #drives == 1 then return drives[1] end
+
+    print("")
+    term.setTextColor(colors.yellow)
+    print("Available disk drives:")
+    term.setTextColor(colors.white)
+    for i, d in ipairs(drives) do
+        print("  " .. i .. ". " .. d)
+    end
+    print("")
+    write("Pick drive (number): ")
+    local input = read()
+    local num = tonumber(input)
+    if num and drives[num] then
+        return drives[num]
+    end
+    return drives[1]
+end
+
 function vlib.listLocalInventories()
     local found = {}
     local sides = {"left", "right", "top", "bottom", "front", "back"}

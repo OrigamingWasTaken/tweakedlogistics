@@ -3,20 +3,6 @@ local vlib = dofile("/tweakedlogistics/virtual/lib.lua")
 local CONFIG_PATH = "/virtual_admin.config"
 local BLOCK_TYPE = "virtual_admin_terminal"
 
-local function findDiskDrive()
-    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
-        if peripheral.hasType(side, "drive") then
-            return side
-        end
-    end
-    local names = peripheral.getNames()
-    for _, name in ipairs(names) do
-        if peripheral.hasType(name, "drive") then
-            return name
-        end
-    end
-    return nil
-end
 
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
@@ -25,7 +11,7 @@ local function setup()
     local cfg = vlib.getConfig()
 
     if not cfg.driveName then
-        cfg.driveName = findDiskDrive()
+        cfg.driveName = vlib.pickDrive()
         if not cfg.driveName then
             term.setTextColor(colors.red)
             print("No disk drive found!")

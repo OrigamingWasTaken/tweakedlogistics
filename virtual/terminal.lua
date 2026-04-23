@@ -3,20 +3,6 @@ local vlib = dofile("/tweakedlogistics/virtual/lib.lua")
 local CONFIG_PATH = "/virtual_terminal.config"
 local BLOCK_TYPE = "virtual_terminal"
 
-local function findDiskDrive()
-    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
-        if peripheral.hasType(side, "drive") then
-            return side
-        end
-    end
-    local names = peripheral.getNames()
-    for _, name in ipairs(names) do
-        if peripheral.hasType(name, "drive") then
-            return name
-        end
-    end
-    return nil
-end
 
 local function loadFromBarrel(cfg)
     if not cfg.inputBarrel or not cfg.driveInput then return false end
@@ -38,7 +24,7 @@ end
 
 local function drainToTarget(cfg, targetInv)
     if not cfg.driveOutput or not targetInv or not cfg.lockSide then return false end
-    local driveName = cfg.driveName or findDiskDrive()
+    local driveName = cfg.driveName or vlib.pickDrive()
     redstone.setOutput(cfg.lockSide, false)
     for _ = 1, 20 do
         if not disk.isPresent(driveName) then break end
@@ -90,7 +76,7 @@ local function setup()
     end
 
     if not cfg.driveName then
-        cfg.driveName = findDiskDrive()
+        cfg.driveName = vlib.pickDrive()
     end
 
     if (cfg.mode == "items" or cfg.mode == "both") and not cfg.outputChest then
@@ -372,7 +358,7 @@ end
 
 local function mainLoop()
     local cfg = vlib.getConfig()
-    local driveName = cfg.driveName or findDiskDrive()
+    local driveName = cfg.driveName or vlib.pickDrive()
 
     if cfg.lockSide then
         redstone.setOutput(cfg.lockSide, true)
