@@ -133,55 +133,34 @@ local function loadFromReserve(cfg)
     return false
 end
 
-local function ejectToBarrel(cfg)
-    if not cfg.driveOutput or not cfg.outputBarrel then return false end
+local function drainToTarget(cfg, targetInv)
+    if not cfg.driveOutput or not targetInv or not cfg.lockSide then return false end
     redstone.setOutput(cfg.lockSide, false)
-    sleep(0.5)
-    disk.eject(cfg.driveName)
+    for _ = 1, 20 do
+        if not disk.isPresent(cfg.driveName) then break end
+        sleep(0.25)
+    end
     sleep(0.5)
     redstone.setOutput(cfg.lockSide, true)
-    sleep(0.3)
     local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
     if ok and contents then
         for slot, _ in pairs(contents) do
-            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.outputBarrel, slot)
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", targetInv, slot)
         end
     end
     return true
+end
+
+local function ejectToBarrel(cfg)
+    return drainToTarget(cfg, cfg.outputBarrel)
 end
 
 local function ejectToReserve(cfg)
-    if not cfg.driveOutput or not cfg.reserveChest then return false end
-    redstone.setOutput(cfg.lockSide, false)
-    sleep(0.5)
-    disk.eject(cfg.driveName)
-    sleep(0.5)
-    redstone.setOutput(cfg.lockSide, true)
-    sleep(0.3)
-    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
-    if ok and contents then
-        for slot, _ in pairs(contents) do
-            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
-        end
-    end
-    return true
+    return drainToTarget(cfg, cfg.reserveChest)
 end
 
 local function returnToInput(cfg)
-    if not cfg.driveOutput or not cfg.inputBarrel or not cfg.lockSide then return false end
-    redstone.setOutput(cfg.lockSide, false)
-    sleep(0.5)
-    disk.eject(cfg.driveName)
-    sleep(0.5)
-    redstone.setOutput(cfg.lockSide, true)
-    sleep(0.3)
-    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
-    if ok and contents then
-        for slot, _ in pairs(contents) do
-            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.inputBarrel, slot)
-        end
-    end
-    return true
+    return drainToTarget(cfg, cfg.inputBarrel)
 end
 
 local function drawMenu()
