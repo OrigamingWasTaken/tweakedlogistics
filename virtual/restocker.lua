@@ -261,6 +261,7 @@ end
 
 local function mainLoop()
     local cfg = vlib.getConfig()
+    local prevCounts = {}
 
     while true do
         local slotData = {}
@@ -297,7 +298,16 @@ local function mainLoop()
             table.insert(statusItems, { item = sd.item, current = sd.current, target = sd.target })
         end
 
-        if overallStatus == "ok" then
+        local anyMoved = false
+        for _, sd in ipairs(slotData) do
+            local prev = prevCounts[sd.item] or 0
+            if sd.current > prev then
+                anyMoved = true
+            end
+            prevCounts[sd.item] = sd.current
+        end
+
+        if anyMoved then
             vlib.playSound("success")
         end
 
@@ -309,14 +319,15 @@ local function mainLoop()
         local waitTimer = os.startTimer(cfg.interval or 10)
         local alarmTimer = os.startTimer(2)
         while true do
-            local event, p1, p2 = os.pullEvent()
+            local event, p1, p2, p3 = os.pullEvent()
             if event == "timer" and p1 == waitTimer then
                 break
             elseif event == "timer" and p1 == alarmTimer then
                 vlib.playAlarm()
                 alarmTimer = os.startTimer(2)
+            elseif event == "rednet_message" then
+                vlib.checkEvent(event, p1, p2)
             end
-            vlib.checkEvent(event, p1, p2)
         end
     end
 end
