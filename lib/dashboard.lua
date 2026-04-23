@@ -139,13 +139,15 @@ local _server = nil
 local TYPE_COLORS = {
     virtual_restocker = colors.blue,
     virtual_redstone_requester = colors.orange,
-    virtual_speaker = colors.purple,
+    virtual_terminal = colors.green,
+    virtual_admin_terminal = colors.cyan,
 }
 
 local TYPE_ICONS = {
     virtual_restocker = "R",
     virtual_redstone_requester = "Q",
-    virtual_speaker = "S",
+    virtual_terminal = "T",
+    virtual_admin_terminal = "A",
 }
 
 local _clientRows = {}
