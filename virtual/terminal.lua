@@ -139,11 +139,11 @@ local function drawIdle()
     _buttons = {}
     mClear()
     local w, h = _mon.getSize()
-    drawBranding(2)
-    mCenter(4, string.rep("-", w - 4), colors.lightGray, colors.black)
-    mCenter(math.floor(h / 2), "Insert card...", colors.yellow, colors.black)
-    mCenter(h, "Server: " .. (vlib.isConnected() and "Connected" or "DISCONNECTED"),
-        vlib.isConnected() and colors.green or colors.red, colors.black)
+    if not vlib.isConnected() then
+        mCenter(math.floor(h / 2), "DISCONNECTED", colors.red, colors.black)
+    else
+        mCenter(math.floor(h / 2), "Insert card...", colors.yellow, colors.black)
+    end
 end
 
 local function drawCardPreview(response)
@@ -151,11 +151,10 @@ local function drawCardPreview(response)
     mClear()
     local w, h = _mon.getSize()
 
-    drawBranding(1)
-    mCenter(3, response.label or "Card", colors.cyan, colors.black)
-    mCenter(4, string.rep("-", w - 4), colors.lightGray, colors.black)
+    mCenter(2, response.label or "Card", colors.cyan, colors.black)
+    mCenter(3, string.rep("-", w - 4), colors.lightGray, colors.black)
 
-    local row = 6
+    local row = 5
     if response.items then
         for name, count in pairs(response.items) do
             if count > 0 and row < h - 3 then
@@ -182,14 +181,12 @@ end
 local function drawProcessing(msg)
     mClear()
     local _, h = _mon.getSize()
-    drawBranding(1)
     mCenter(math.floor(h / 2), msg, colors.yellow, colors.black)
 end
 
 local function drawResult(msg, ok)
     mClear()
     local _, h = _mon.getSize()
-    drawBranding(1)
     mCenter(math.floor(h / 2), msg, ok and colors.green or colors.red, colors.black)
 end
 
@@ -514,19 +511,33 @@ local function mainLoop()
                     sleep(2)
                 elseif response.type == "card_access" then
                     if response.granted then
-                        drawResult("ACCESS GRANTED", true)
                         vlib.playSound("success")
+                        ejectToBarrel(cfg)
+
+                        local duration = response.duration or cfg.redstoneDuration or 3
                         if cfg.redstoneSide then
                             redstone.setOutput(cfg.redstoneSide, true)
-                            sleep(response.duration or cfg.redstoneDuration or 3)
+                        end
+
+                        local w, h = _mon.getSize()
+                        for i = duration, 1, -1 do
+                            mClear()
+                            mCenter(math.floor(h / 2) - 1, "ACCESS GRANTED", colors.green, colors.black)
+                            mCenter(math.floor(h / 2) + 1, "Closing in " .. i .. "s", colors.yellow, colors.black)
+                            sleep(1)
+                        end
+
+                        if cfg.redstoneSide then
                             redstone.setOutput(cfg.redstoneSide, false)
                         end
                     else
-                        drawResult("ACCESS DENIED", false)
+                        mClear()
+                        local _, h = _mon.getSize()
+                        mCenter(math.floor(h / 2), "ACCESS DENIED", colors.red, colors.black)
                         vlib.playSound("error")
+                        returnToInput(cfg)
+                        sleep(3)
                     end
-                    returnToInput(cfg)
-                    sleep(2)
                 elseif response.type == "card_data" then
                     if response.cardType == "redemption" then
                         drawCardPreview(response)
