@@ -126,6 +126,27 @@ function vlib.receive(timeout)
             vlib.register(_blockType, _blockConfig)
             return nil
         end
+        if message.type == "pending" then
+            term.clear()
+            term.setCursorPos(1, 1)
+            term.setTextColor(colors.yellow)
+            print("Waiting for server approval...")
+            print("Ask admin to run: approve " .. os.getComputerID())
+            while true do
+                local msg2 = vlib.receive(10)
+                if msg2 and msg2.type == "config_ack" then
+                    return msg2
+                end
+            end
+        end
+        if message.type == "revoked" then
+            term.clear()
+            term.setCursorPos(1, 1)
+            term.setTextColor(colors.red)
+            print("This client has been revoked.")
+            print("Contact an admin.")
+            while true do sleep(30) end
+        end
         _connected = true
         _lastServerResponse = os.epoch("utc")
         _alarmActive = false
