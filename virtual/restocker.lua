@@ -118,12 +118,21 @@ local function setup()
     return true
 end
 
+local function matchesItem(slotName, itemName)
+    if slotName == itemName then return true end
+    if not itemName:find(":") then
+        if slotName == "minecraft:" .. itemName then return true end
+        if slotName:match(":(.+)") == itemName then return true end
+    end
+    return false
+end
+
 local function countItemInInventory(invName, itemName)
     local total = 0
     local ok, contents = pcall(peripheral.call, invName, "list")
     if ok and contents then
         for _, slot in pairs(contents) do
-            if slot.name == itemName then
+            if matchesItem(slot.name, itemName) then
                 total = total + slot.count
             end
         end
