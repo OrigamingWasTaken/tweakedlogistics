@@ -288,6 +288,17 @@ local function handleCardWithdraw(senderId, msg)
     end
 
     local available = storageItem and storageItem.count or 0
+    if available <= 0 then
+        rednet.send(senderId, {
+            type = "card_delivered",
+            item = msg.item,
+            count = 0,
+            remaining = card.items or {},
+            reclaim = false,
+            error = "Item not in stock",
+        })
+        return
+    end
     local cardAmount = _cards.withdraw(msg.diskId, msg.item, math.min(msg.count, available))
     local delivered = 0
 

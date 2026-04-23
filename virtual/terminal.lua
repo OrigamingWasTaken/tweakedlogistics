@@ -53,6 +53,23 @@ local function ejectToBarrel(cfg)
     return true
 end
 
+local function returnToInput(cfg)
+    if not cfg.driveOutput or not cfg.inputBarrel or not cfg.lockSide then return false end
+    redstone.setOutput(cfg.lockSide, false)
+    sleep(0.5)
+    disk.eject(cfg.driveName or findDiskDrive())
+    sleep(0.5)
+    redstone.setOutput(cfg.lockSide, true)
+    sleep(0.3)
+    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.inputBarrel, slot)
+        end
+    end
+    return true
+end
+
 local function ejectToReserve(cfg)
     if not cfg.driveOutput or not cfg.reserveChest or not cfg.lockSide then return false end
     redstone.setOutput(cfg.lockSide, false)
@@ -267,6 +284,8 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
         return
     end
 
+    local anyDelivered = false
+
     if response.cardType == "redemption" then
         term.setTextColor(colors.yellow)
         print("Redeeming all items...")
@@ -284,9 +303,13 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
                 count = item.count,
             })
             local reply = vlib.receiveType("card_delivered", 10)
-            if reply and reply.count > 0 then
+            if reply and reply.count and reply.count > 0 then
+                anyDelivered = true
                 term.setTextColor(colors.green)
                 print("    Delivered " .. reply.count .. "!")
+            elseif reply and reply.error then
+                term.setTextColor(colors.red)
+                print("    " .. reply.error)
             elseif reply and reply.count == 0 then
                 term.setTextColor(colors.red)
                 print("    Not in stock!")
@@ -297,12 +320,18 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
         end
 
         print("")
-        term.setTextColor(colors.green)
-        print("Done!")
-        vlib.playSound("success")
-
-        print("Reclaiming card...")
-        ejectToReserve(cfg)
+        if anyDelivered then
+            term.setTextColor(colors.green)
+            print("Done!")
+            vlib.playSound("success")
+            print("Reclaiming card...")
+            ejectToReserve(cfg)
+        else
+            term.setTextColor(colors.red)
+            print("Nothing delivered. Returning card...")
+            vlib.playSound("error")
+            returnToInput(cfg)
+        end
         sleep(1)
 
     elseif response.cardType == "balance" then
@@ -400,8 +429,10 @@ local function mainLoop()
                 term.clear()
                 term.setCursorPos(1, 1)
                 term.setTextColor(colors.red)
-                print("Invalid disk.")
-                sleep(2)
+                print("Invalid disk. Returning...")
+                vlib.playSound("error")
+                returnToInput(cfg)
+                sleep(1)
             else
                 vlib.send({
                     type = "card_scan",
@@ -414,15 +445,18 @@ local function mainLoop()
                     term.clear()
                     term.setCursorPos(1, 1)
                     term.setTextColor(colors.red)
-                    print("Server not responding.")
-                    sleep(2)
+                    print("Server not responding. Returning card...")
+                    returnToInput(cfg)
+                    sleep(1)
                 elseif response.type == "card_denied" then
                     term.clear()
                     term.setCursorPos(1, 1)
                     term.setTextColor(colors.red)
                     print("Card denied: " .. (response.reason or "unknown"))
                     vlib.playSound("error")
-                    sleep(2)
+                    print("Returning card...")
+                    returnToInput(cfg)
+                    sleep(1)
                 elseif response.type == "card_access" then
                     handleAccess(cfg, response)
                 elseif response.type == "card_data" then
