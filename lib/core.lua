@@ -117,5 +117,40 @@ function core.findInventories(typeFilter)
     return result
 end
 
+function core.findModem()
+    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
+        if peripheral.hasType(side, "modem") then
+            return side
+        end
+    end
+    return nil
+end
+
+function core.findSpeaker()
+    local speaker = peripheral.find("speaker")
+    return speaker
+end
+
+function core.matchesItem(slotName, itemName)
+    if slotName == itemName then return true end
+    if not itemName:find(":") then
+        if slotName == "minecraft:" .. itemName then return true end
+        if slotName:match(":(.+)") == itemName then return true end
+    end
+    return false
+end
+
+function core.readVersion()
+    if fs.exists("/tweakedlogistics/.version") then
+        local h = fs.open("/tweakedlogistics/.version", "r")
+        if h then
+            local v = h.readAll()
+            h.close()
+            return v
+        end
+    end
+    return nil
+end
+
 return core
 -- v0.2.0

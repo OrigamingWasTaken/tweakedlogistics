@@ -254,6 +254,111 @@ function vlib.setConfig(key, value)
     vlib.saveConfig()
 end
 
+function vlib.resolveInventory(sideOrName)
+    if peripheral.hasType(sideOrName, "inventory") then
+        local wrapped = peripheral.wrap(sideOrName)
+        if wrapped then
+            local name = peripheral.getName(wrapped)
+            if name then return name end
+        end
+    end
+    return sideOrName
+end
+
+function vlib.listLocalInventories()
+    local found = {}
+    local sides = {"left", "right", "top", "bottom", "front", "back"}
+    for _, side in ipairs(sides) do
+        if peripheral.hasType(side, "inventory") then
+            local wrapped = peripheral.wrap(side)
+            local name = peripheral.getName(wrapped)
+            table.insert(found, { side = side, name = name })
+        end
+    end
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "inventory") then
+            local already = false
+            for _, f in ipairs(found) do
+                if f.name == name then already = true break end
+            end
+            if not already then
+                table.insert(found, { side = nil, name = name })
+            end
+        end
+    end
+    return found
+end
+
+function vlib.pickInventory()
+    local invs = vlib.listLocalInventories()
+    if #invs > 0 then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Available inventories:")
+        term.setTextColor(colors.white)
+        for i, inv in ipairs(invs) do
+            local label = inv.name
+            if inv.side then
+                label = label .. " (" .. inv.side .. ")"
+            end
+            print("  " .. i .. ". " .. label)
+        end
+        print("")
+        write("Pick inventory (number or name): ")
+        local input = read()
+        local num = tonumber(input)
+        if num and invs[num] then
+            return invs[num].name
+        elseif input and input ~= "" then
+            return vlib.resolveInventory(input)
+        end
+    else
+        write("Destination inventory name: ")
+        local input = read()
+        if input and input ~= "" then
+            return vlib.resolveInventory(input)
+        end
+    end
+    return nil
+end
+
+function vlib.matchesItem(slotName, itemName)
+    if slotName == itemName then return true end
+    if not itemName:find(":") then
+        if slotName == "minecraft:" .. itemName then return true end
+        if slotName:match(":(.+)") == itemName then return true end
+    end
+    return false
+end
+
+function vlib.countItemInInventory(invName, itemName)
+    local total = 0
+    local ok, contents = pcall(peripheral.call, invName, "list")
+    if ok and contents then
+        for _, slot in pairs(contents) do
+            if vlib.matchesItem(slot.name, itemName) then
+                total = total + slot.count
+            end
+        end
+    end
+    return total
+end
+
+function vlib.pullFromSources(destination, sources)
+    local total = 0
+    for _, source in ipairs(sources) do
+        local ok, moved = pcall(
+            peripheral.call, destination, "pullItems",
+            source.inv, source.slot, source.count
+        )
+        if ok and moved then
+            total = total + moved
+        end
+    end
+    return total
+end
+
 function vlib.setupScreen(blockName)
     term.clear()
     term.setCursorPos(1, 1)

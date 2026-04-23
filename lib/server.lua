@@ -56,15 +56,7 @@ end
 local function findItem(itemName)
     local items = _storage.getItems()
     for _, item in ipairs(items) do
-        if item.name == itemName then return item end
-    end
-    if not itemName:find(":") then
-        for _, item in ipairs(items) do
-            if item.name == "minecraft:" .. itemName then return item end
-        end
-        for _, item in ipairs(items) do
-            if item.name:match(":(.+)") == itemName then return item end
-        end
+        if _core.matchesItem(item.name, itemName) then return item end
     end
     return nil
 end
@@ -261,7 +253,7 @@ end
 function server.loop()
     _modemSide = findModem()
     if not _modemSide then
-        return
+        while true do sleep(30) end
     end
 
     rednet.open(_modemSide)

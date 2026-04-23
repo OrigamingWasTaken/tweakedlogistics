@@ -1,5 +1,6 @@
 local cli = {}
 
+local _rarity = nil
 local _core = nil
 local _storage = nil
 local _logistics = nil
@@ -18,6 +19,7 @@ function cli.init(core, storage, logistics, crafting, nicknames, server, dashboa
     _server = server
     _dashboard = dashboard
     _config = config
+    _rarity = dofile("/tweakedlogistics/lib/rarity.lua")
 end
 
 local function printColor(text, color)
@@ -55,35 +57,6 @@ local function printHelp()
     print("  exit          Stop and return to shell")
 end
 
-local EPIC_ITEMS = {
-    ["minecraft:mace"] = true,
-    ["minecraft:dragon_egg"] = true,
-    ["minecraft:end_crystal"] = true,
-}
-
-local RARE_ITEMS = {
-    ["minecraft:nether_star"] = true,
-    ["minecraft:elytra"] = true,
-    ["minecraft:trident"] = true,
-    ["minecraft:totem_of_undying"] = true,
-    ["minecraft:enchanted_golden_apple"] = true,
-}
-
-local UNCOMMON_ITEMS = {
-    ["minecraft:golden_apple"] = true,
-    ["minecraft:experience_bottle"] = true,
-    ["minecraft:dragon_breath"] = true,
-}
-
-local function getItemColor(item)
-    if EPIC_ITEMS[item.name] then return colors.purple end
-    if RARE_ITEMS[item.name] then return colors.cyan end
-    if item.enchantments and #item.enchantments > 0 then return colors.cyan end
-    if UNCOMMON_ITEMS[item.name] then return colors.yellow end
-    if item.customName then return colors.lightGray end
-    return colors.white
-end
-
 local function cmdStock()
     local items = _storage.getItems()
     if #items == 0 then
@@ -92,7 +65,7 @@ local function cmdStock()
     end
     printColor(string.format("%-30s %s", "Item", "Count"), colors.yellow)
     for _, item in ipairs(items) do
-        local nameColor = getItemColor(item)
+        local nameColor = _rarity.getItemColor(item)
         local name = item.displayName
         local suffix = ""
         if item.customName and item.baseName then
@@ -238,14 +211,7 @@ local function cmdClients()
         return
     end
 
-    local serverVersion = nil
-    if fs.exists("/tweakedlogistics/.version") then
-        local h = fs.open("/tweakedlogistics/.version", "r")
-        if h then
-            serverVersion = h.readAll()
-            h.close()
-        end
-    end
+    local serverVersion = _core.readVersion()
 
     for _, client in ipairs(clients) do
         local ver = client.version and client.version:sub(1, 7) or "?"
@@ -421,14 +387,7 @@ local function cmdGet(args)
 end
 
 local function cmdUpdate(force)
-    local currentHash = nil
-    if fs.exists("/tweakedlogistics/.version") then
-        local h = fs.open("/tweakedlogistics/.version", "r")
-        if h then
-            currentHash = h.readAll()
-            h.close()
-        end
-    end
+    local currentHash = _core.readVersion()
 
     print("Checking for updates...")
     local resp = http.get("https://api.github.com/repos/OrigamingWasTaken/tweakedlogistics/commits/main")

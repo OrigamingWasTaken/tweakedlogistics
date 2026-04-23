@@ -1,5 +1,7 @@
 local dashboard = {}
 
+local rarity = dofile("/tweakedlogistics/lib/rarity.lua")
+
 local _core = nil
 local _storage = nil
 local _logistics = nil
@@ -76,82 +78,11 @@ local function formatCount(n)
     return tostring(n)
 end
 
--- Rarity --
-
-local EPIC_ITEMS = {
-    ["minecraft:mace"] = true,
-    ["minecraft:dragon_egg"] = true,
-    ["minecraft:end_crystal"] = true,
-    ["minecraft:command_block"] = true,
-    ["minecraft:chain_command_block"] = true,
-    ["minecraft:repeating_command_block"] = true,
-}
-
-local UNCOMMON_ITEMS = {
-    ["minecraft:golden_apple"] = true,
-    ["minecraft:experience_bottle"] = true,
-    ["minecraft:dragon_breath"] = true,
-    ["minecraft:nautilus_shell"] = true,
-    ["minecraft:heart_of_the_sea"] = true,
-    ["minecraft:music_disc_13"] = true,
-    ["minecraft:music_disc_cat"] = true,
-    ["minecraft:music_disc_blocks"] = true,
-    ["minecraft:music_disc_chirp"] = true,
-    ["minecraft:music_disc_far"] = true,
-    ["minecraft:music_disc_mall"] = true,
-    ["minecraft:music_disc_mellohi"] = true,
-    ["minecraft:music_disc_stal"] = true,
-    ["minecraft:music_disc_strad"] = true,
-    ["minecraft:music_disc_ward"] = true,
-    ["minecraft:music_disc_11"] = true,
-    ["minecraft:music_disc_wait"] = true,
-    ["minecraft:music_disc_pigstep"] = true,
-    ["minecraft:music_disc_otherside"] = true,
-    ["minecraft:music_disc_5"] = true,
-    ["minecraft:music_disc_relic"] = true,
-}
-
-local RARE_ITEMS = {
-    ["minecraft:nether_star"] = true,
-    ["minecraft:elytra"] = true,
-    ["minecraft:trident"] = true,
-    ["minecraft:totem_of_undying"] = true,
-    ["minecraft:enchanted_golden_apple"] = true,
-}
-
-local function getItemRarity(item)
-    if EPIC_ITEMS[item.name] then return "epic" end
-    if RARE_ITEMS[item.name] then return "rare" end
-
-    local baseRarity = "common"
-    if UNCOMMON_ITEMS[item.name] then baseRarity = "uncommon" end
-
-    if item.enchantments and #item.enchantments > 0 then
-        if baseRarity == "common" or baseRarity == "uncommon" then
-            return "rare"
-        end
-    end
-
-    return baseRarity
-end
-
-local function getRarityColor(rarity)
-    if rarity == "epic" then return colors.purple end
-    if rarity == "rare" then return colors.cyan end
-    if rarity == "uncommon" then return colors.yellow end
-    return colors.white
-end
-
 -- Panels --
 
 local function drawItemName(mon, x, y, w, item, bg)
-    local rarity = getItemRarity(item)
-    local nameColor = getRarityColor(rarity)
+    local nameColor = rarity.getItemColor(item)
     local isRenamed = item.customName ~= nil
-
-    if isRenamed then
-        nameColor = colors.lightGray
-    end
 
     local name = item.displayName
     local suffix = ""
@@ -416,9 +347,7 @@ local function panelActivity(mon, w, h, monName)
                 end
             end
             if item then
-                local rarity = getItemRarity(item)
-                nameColor = getRarityColor(rarity)
-                if item.customName then nameColor = colors.lightGray end
+                nameColor = rarity.getItemColor(item)
             end
 
             if #name > nameW then
@@ -549,9 +478,8 @@ local function drawModal(mon, w, h, item, monName)
     box(mon, mx, my, modalW, modalH, colors.gray)
     box(mon, mx, my, modalW, 1, colors.blue)
 
-    local rarity = getItemRarity(item)
-    local nameColor = getRarityColor(rarity)
-    if item.customName then nameColor = colors.lightGray end
+    local itemRarity = rarity.get(item)
+    local nameColor = rarity.getItemColor(item)
 
     local title = item.displayName
     if #title > modalW - 5 then
@@ -580,9 +508,9 @@ local function drawModal(mon, w, h, item, monName)
     text(mon, mx + 8, row, tostring(item.count), colors.white, colors.gray)
     row = row + 1
 
-    local rarityLabel = rarity:sub(1, 1):upper() .. rarity:sub(2)
+    local rarityLabel = itemRarity:sub(1, 1):upper() .. itemRarity:sub(2)
     text(mon, mx + 1, row, "Rarity: ", colors.lightGray, colors.gray)
-    text(mon, mx + 9, row, rarityLabel, getRarityColor(rarity), colors.gray)
+    text(mon, mx + 9, row, rarityLabel, rarity.getColor(itemRarity), colors.gray)
     row = row + 1
 
     if item.enchantments and #item.enchantments > 0 then
@@ -630,19 +558,7 @@ end
 local _speaker = nil
 
 local function findSpeaker()
-    for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
-        if peripheral.hasType(side, "speaker") then
-            _speaker = peripheral.wrap(side)
-            return
-        end
-    end
-    local names = peripheral.getNames()
-    for _, name in ipairs(names) do
-        if peripheral.hasType(name, "speaker") then
-            _speaker = peripheral.wrap(name)
-            return
-        end
-    end
+    _speaker = peripheral.find("speaker")
 end
 
 local function playClick()
@@ -660,17 +576,6 @@ function dashboard.init(core, storage, logistics, crafting, server, config)
     _server = server
     _config = config
     findSpeaker()
-end
-
-local function findMonitors()
-    local result = {}
-    local names = peripheral.getNames()
-    for _, name in ipairs(names) do
-        if peripheral.hasType(name, "monitor") then
-            table.insert(result, name)
-        end
-    end
-    return result
 end
 
 local function renderPanel(mon, panelId, monName)
@@ -695,7 +600,7 @@ end
 
 local function renderAll()
     local panelConfig = _config.get("dashboard.panels") or {}
-    local monitors = findMonitors()
+    local monitors = _core.findInventories("monitor")
 
     if next(panelConfig) == nil then
         for _, monName in ipairs(monitors) do
@@ -784,12 +689,6 @@ end
 function dashboard.loop()
     renderAll()
 
-    local needsRedraw = false
-
-    _core.event.on("storage:changed", function()
-        needsRedraw = true
-    end)
-
     while true do
         local timerId = os.startTimer(_config.get("dashboard.interval") or 1)
 
@@ -811,7 +710,6 @@ function dashboard.loop()
         end
 
         renderAll()
-        needsRedraw = false
     end
 end
 

@@ -18,14 +18,6 @@ server.init(core, storage, logistics, crafting, nicknames, cfg)
 dashboard.init(core, storage, logistics, crafting, server, cfg)
 cli.init(core, storage, logistics, crafting, nicknames, server, dashboard, cfg)
 
-local savedProcessors = cfg.get("crafting.processors")
-if type(savedProcessors) == "table" then
-    for _, proc in ipairs(savedProcessors) do
-        storage.excludeInventory(proc.input)
-        storage.excludeInventory(proc.output)
-    end
-end
-
 term.clear()
 term.setCursorPos(1, 1)
 term.setTextColor(colors.cyan)
@@ -37,13 +29,7 @@ storage.scan()
 local status = storage.getStatus()
 print("Found " .. status.uniqueTypes .. " item types in " .. status.inventories .. " inventories")
 
-local modemFound = false
-for _, side in ipairs({"left", "right", "top", "bottom", "front", "back"}) do
-    if peripheral.hasType(side, "modem") then
-        modemFound = true
-        break
-    end
-end
+local modemFound = core.findModem() ~= nil
 print("Server: " .. (modemFound and "enabled" or "no modem"))
 print("")
 term.setTextColor(colors.lightGray)
@@ -52,7 +38,6 @@ print("")
 
 parallel.waitForAll(
     storage.loop,
-    logistics.loop,
     crafting.loop,
     dashboard.loop,
     server.loop,

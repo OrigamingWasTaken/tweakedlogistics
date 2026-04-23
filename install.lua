@@ -13,6 +13,7 @@ local components = {
             { remote = "lib/nicknames.lua", path = "/tweakedlogistics/lib/nicknames.lua" },
             { remote = "lib/server.lua", path = "/tweakedlogistics/lib/server.lua" },
             { remote = "lib/cli.lua", path = "/tweakedlogistics/lib/cli.lua" },
+            { remote = "lib/rarity.lua", path = "/tweakedlogistics/lib/rarity.lua" },
             { remote = "main.lua", path = "/tweakedlogistics/main.lua" },
             { remote = "startup.lua", path = "/startup.lua" },
         },
@@ -47,16 +48,6 @@ local components = {
         },
         dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
         postInstall = "Reboot to begin setup.",
-    },
-    {
-        name = "Virtual Speaker",
-        variant = "speaker",
-        files = {
-            { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
-            { remote = "virtual/speaker.lua", path = "/startup.lua" },
-        },
-        dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
-        postInstall = "Reboot to begin setup. Requires a speaker peripheral.",
     },
 }
 

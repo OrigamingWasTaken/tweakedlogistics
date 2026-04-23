@@ -203,7 +203,7 @@ local function processJobs()
                 local key = nil
                 local items = _storage.getItems()
                 for _, item in ipairs(items) do
-                    if item.name == inputItem then
+                    if _core.matchesItem(item.name, inputItem) then
                         key = item.key
                         break
                     end

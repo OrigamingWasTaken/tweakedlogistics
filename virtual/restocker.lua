@@ -3,75 +3,6 @@ local vlib = dofile("/tweakedlogistics/virtual/lib.lua")
 local CONFIG_PATH = "/virtual_restocker.config"
 local BLOCK_TYPE = "virtual_restocker"
 
-local function resolveInventory(sideOrName)
-    if peripheral.hasType(sideOrName, "inventory") then
-        local wrapped = peripheral.wrap(sideOrName)
-        if wrapped then
-            local name = peripheral.getName(wrapped)
-            if name then return name end
-        end
-    end
-    return sideOrName
-end
-
-local function listLocalInventories()
-    local found = {}
-    local sides = {"left", "right", "top", "bottom", "front", "back"}
-    for _, side in ipairs(sides) do
-        if peripheral.hasType(side, "inventory") then
-            local wrapped = peripheral.wrap(side)
-            local name = peripheral.getName(wrapped)
-            table.insert(found, { side = side, name = name })
-        end
-    end
-    local names = peripheral.getNames()
-    for _, name in ipairs(names) do
-        if peripheral.hasType(name, "inventory") then
-            local already = false
-            for _, f in ipairs(found) do
-                if f.name == name then already = true break end
-            end
-            if not already then
-                table.insert(found, { side = nil, name = name })
-            end
-        end
-    end
-    return found
-end
-
-local function pickInventory()
-    local invs = listLocalInventories()
-    if #invs > 0 then
-        print("")
-        term.setTextColor(colors.yellow)
-        print("Available inventories:")
-        term.setTextColor(colors.white)
-        for i, inv in ipairs(invs) do
-            local label = inv.name
-            if inv.side then
-                label = label .. " (" .. inv.side .. ")"
-            end
-            print("  " .. i .. ". " .. label)
-        end
-        print("")
-        write("Pick inventory (number or name): ")
-        local input = read()
-        local num = tonumber(input)
-        if num and invs[num] then
-            return invs[num].name
-        elseif input and input ~= "" then
-            return resolveInventory(input)
-        end
-    else
-        write("Destination inventory name: ")
-        local input = read()
-        if input and input ~= "" then
-            return resolveInventory(input)
-        end
-    end
-    return nil
-end
-
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
     if not vlib.setupScreen("Restocker") then return false end
@@ -82,7 +13,7 @@ local function setup()
     print("")
 
     if not cfg.destination then
-        cfg.destination = pickInventory()
+        cfg.destination = vlib.pickInventory()
         if not cfg.destination then return false end
     end
 
@@ -133,42 +64,6 @@ local function setup()
 
     sleep(1)
     return true
-end
-
-local function matchesItem(slotName, itemName)
-    if slotName == itemName then return true end
-    if not itemName:find(":") then
-        if slotName == "minecraft:" .. itemName then return true end
-        if slotName:match(":(.+)") == itemName then return true end
-    end
-    return false
-end
-
-local function countItemInInventory(invName, itemName)
-    local total = 0
-    local ok, contents = pcall(peripheral.call, invName, "list")
-    if ok and contents then
-        for _, slot in pairs(contents) do
-            if matchesItem(slot.name, itemName) then
-                total = total + slot.count
-            end
-        end
-    end
-    return total
-end
-
-local function pullFromSources(destination, sources)
-    local total = 0
-    for _, source in ipairs(sources) do
-        local ok, moved = pcall(
-            peripheral.call, destination, "pullItems",
-            source.inv, source.slot, source.count
-        )
-        if ok and moved then
-            total = total + moved
-        end
-    end
-    return total
 end
 
 local function drawBar(mon_y, w, current, target)
@@ -269,7 +164,7 @@ local function mainLoop()
         local statusItems = {}
 
         for _, slot in ipairs(cfg.slots) do
-            local current = countItemInInventory(cfg.destination, slot.item)
+            local current = vlib.countItemInInventory(cfg.destination, slot.item)
             local sd = { item = slot.item, target = slot.target, current = current }
             table.insert(slotData, sd)
 
@@ -285,8 +180,8 @@ local function mainLoop()
 
                 local reply = vlib.receiveType("item_sources", 5)
                 if reply and #reply.sources > 0 then
-                    local pulled = pullFromSources(cfg.destination, reply.sources)
-                    sd.current = countItemInInventory(cfg.destination, slot.item)
+                    local pulled = vlib.pullFromSources(cfg.destination, reply.sources)
+                    sd.current = vlib.countItemInInventory(cfg.destination, slot.item)
                     if sd.current < sd.target then
                         overallStatus = "short"
                     end
