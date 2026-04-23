@@ -27,33 +27,50 @@ local function setup()
     term.setTextColor(colors.white)
     print("")
 
-    if not cfg.zone then
-        write("Zone name (e.g. main_door): ")
-        cfg.zone = read()
-        if not cfg.zone or cfg.zone == "" then cfg.zone = "default" end
+    if not cfg.mode then
+        print("Terminal mode:")
+        print("  1. Item terminal (redeem/balance)")
+        print("  2. Door terminal (access cards)")
+        print("  3. Both")
+        print("")
+        write("Choose (1-3): ")
+        local choice = tonumber(read())
+        if choice == 1 then cfg.mode = "items"
+        elseif choice == 2 then cfg.mode = "door"
+        else cfg.mode = "both" end
     end
 
-    if not cfg.outputChest then
+    if not cfg.driveName then
+        cfg.driveName = findDiskDrive()
+    end
+
+    if (cfg.mode == "items" or cfg.mode == "both") and not cfg.outputChest then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select output chest for items:")
+        term.setTextColor(colors.white)
         local chest = vlib.pickInventory()
         if chest then
             cfg.outputChest = chest
         end
     end
 
-    if not cfg.redstoneSide then
-        write("Redstone side for door (or blank): ")
-        local side = read()
-        if side and side ~= "" then
-            cfg.redstoneSide = side
+    if (cfg.mode == "door" or cfg.mode == "both") then
+        if not cfg.zone then
+            write("Zone name (e.g. main_door): ")
+            cfg.zone = read()
+            if not cfg.zone or cfg.zone == "" then cfg.zone = "default" end
         end
-    end
-
-    if not cfg.redstoneDuration then
-        cfg.redstoneDuration = 3
-    end
-
-    if not cfg.driveName then
-        cfg.driveName = findDiskDrive()
+        if not cfg.redstoneSide then
+            write("Redstone side for door: ")
+            local side = read()
+            if side and side ~= "" then
+                cfg.redstoneSide = side
+            end
+        end
+        if not cfg.redstoneDuration then
+            cfg.redstoneDuration = 3
+        end
     end
 
     vlib.saveConfig()
