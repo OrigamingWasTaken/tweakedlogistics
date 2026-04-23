@@ -279,6 +279,15 @@ local function closeModal()
     _modalTyping = false
 end
 
+local function queryStock()
+    vlib.send({ type = "query_stock" })
+    local reply = vlib.receiveType("stock_update", 5)
+    if reply and reply.items then
+        _items = reply.items
+        filterItems()
+    end
+end
+
 local function sendExtract()
     if not _modal then return end
     local dest = getOutputChest()
@@ -293,6 +302,7 @@ local function sendExtract()
         vlib.playSound("success")
     end
     closeModal()
+    queryStock()
 end
 
 local function handleModalClick(x, y)
@@ -373,15 +383,6 @@ local function handleClick(x, y)
             _selectedRow = idx
             openModal(_filtered[idx])
         end
-    end
-end
-
-local function queryStock()
-    vlib.send({ type = "query_stock" })
-    local reply = vlib.receiveType("stock_update", 5)
-    if reply and reply.items then
-        _items = reply.items
-        filterItems()
     end
 end
 
