@@ -92,7 +92,9 @@ local function setup()
         term.setTextColor(colors.yellow)
         print("Add items to restock (blank to finish):")
         term.setTextColor(colors.white)
-        for i = 1, 9 do
+        local i = 0
+        while true do
+            i = i + 1
             write("Item " .. i .. ": ")
             local item = read()
             if not item or item == "" then break end
