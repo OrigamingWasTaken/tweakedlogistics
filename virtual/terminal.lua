@@ -443,7 +443,7 @@ local function mainLoop()
         _monName = cfg.monitorName
         _mon = peripheral.wrap(_monName)
         if _mon then
-            _mon.setTextScale(1)
+            _mon.setTextScale(0.5)
             applyPalette(_mon)
         end
     end
