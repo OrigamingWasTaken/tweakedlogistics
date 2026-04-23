@@ -6,6 +6,7 @@ local dashboard = dofile("/tweakedlogistics/lib/dashboard.lua")
 local nicknames = dofile("/tweakedlogistics/lib/nicknames.lua")
 local server = dofile("/tweakedlogistics/lib/server.lua")
 local cli = dofile("/tweakedlogistics/lib/cli.lua")
+local cards = dofile("/tweakedlogistics/lib/cards.lua")
 
 local cfg = core.config("/tweakedlogistics.config")
 
@@ -14,7 +15,8 @@ logistics.init(core, storage, cfg)
 crafting.init(core, storage, cfg)
 logistics.setCrafting(crafting)
 nicknames.init(cfg)
-server.init(core, storage, logistics, crafting, nicknames, cfg)
+cards.init(cfg)
+server.init(core, storage, logistics, crafting, nicknames, cards, cfg)
 dashboard.init(core, storage, logistics, crafting, server, cfg)
 cli.init(core, storage, logistics, crafting, nicknames, server, dashboard, cfg)
 

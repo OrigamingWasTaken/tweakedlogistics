@@ -14,6 +14,7 @@ local components = {
             { remote = "lib/server.lua", path = "/tweakedlogistics/lib/server.lua" },
             { remote = "lib/cli.lua", path = "/tweakedlogistics/lib/cli.lua" },
             { remote = "lib/rarity.lua", path = "/tweakedlogistics/lib/rarity.lua" },
+            { remote = "lib/cards.lua", path = "/tweakedlogistics/lib/cards.lua" },
             { remote = "main.lua", path = "/tweakedlogistics/main.lua" },
             { remote = "startup.lua", path = "/startup.lua" },
         },
@@ -45,6 +46,26 @@ local components = {
         files = {
             { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
             { remote = "virtual/redstone_requester.lua", path = "/startup.lua" },
+        },
+        dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
+        postInstall = "Reboot to begin setup.",
+    },
+    {
+        name = "Public Terminal",
+        variant = "terminal",
+        files = {
+            { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
+            { remote = "virtual/terminal.lua", path = "/startup.lua" },
+        },
+        dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
+        postInstall = "Reboot to begin setup.",
+    },
+    {
+        name = "Admin Terminal",
+        variant = "admin_terminal",
+        files = {
+            { remote = "virtual/lib.lua", path = "/tweakedlogistics/virtual/lib.lua" },
+            { remote = "virtual/admin_terminal.lua", path = "/startup.lua" },
         },
         dirs = { "/tweakedlogistics", "/tweakedlogistics/virtual" },
         postInstall = "Reboot to begin setup.",

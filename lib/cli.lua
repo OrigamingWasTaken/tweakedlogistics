@@ -49,6 +49,10 @@ local function printHelp()
     print("  clients       Connected virtual blocks")
     print("  reconnect     Reconnect all clients")
     print("  update-client <id>  Update one client")
+    print("  pending         Pending client approvals")
+    print("  approve <id>    Approve a client")
+    print("  revoke <id>     Remove a client")
+    print("  cards           List all cards")
     printColor("System:", colors.yellow)
     print("  set <key> <value>  Set config value")
     print("  get <key>       Get config value")
@@ -344,6 +348,86 @@ local function cmdSetPanel(args)
     printColor("Set " .. monName .. " -> " .. panelId, colors.green)
 end
 
+local function cmdPending()
+    if not _server then
+        print("Server not running.")
+        return
+    end
+    local pending = _server.getPending()
+    if #pending == 0 then
+        printColor("No pending clients.", colors.green)
+        return
+    end
+    printColor("Pending approval:", colors.yellow)
+    for _, p in ipairs(pending) do
+        local btype = (p.blockType or "unknown"):gsub("virtual_", "")
+        print("  #" .. p.id .. " " .. btype)
+    end
+end
+
+local function cmdApprove(args)
+    if not _server then
+        print("Server not running.")
+        return
+    end
+    local id = args[1]
+    if not id then
+        write("Client ID: ")
+        id = read()
+    end
+    local num = tonumber(id)
+    if not num then
+        printColor("Invalid ID.", colors.red)
+        return
+    end
+    _server.approve(num)
+    printColor("Approved #" .. num, colors.green)
+end
+
+local function cmdRevoke(args)
+    if not _server then
+        print("Server not running.")
+        return
+    end
+    local id = args[1]
+    if not id then
+        write("Client ID: ")
+        id = read()
+    end
+    local num = tonumber(id)
+    if not num then
+        printColor("Invalid ID.", colors.red)
+        return
+    end
+    _server.revoke(num)
+    printColor("Revoked #" .. num, colors.green)
+end
+
+local function cmdCards()
+    local cardsModule = dofile("/tweakedlogistics/lib/cards.lua")
+    cardsModule.init(_config)
+    local all = cardsModule.getAll()
+    local count = 0
+    for diskId, card in pairs(all) do
+        local itemCount = 0
+        if card.items then
+            for _, v in pairs(card.items) do
+                itemCount = itemCount + v
+            end
+        end
+        term.setTextColor(colors.white)
+        write("  Disk #" .. diskId .. " ")
+        term.setTextColor(colors.cyan)
+        write(card.type .. " ")
+        term.setTextColor(colors.lightGray)
+        print('"' .. (card.label or "?") .. '" (' .. itemCount .. " items)")
+        count = count + 1
+    end
+    if count == 0 then
+        print("No cards registered.")
+    end
+end
+
 local function cmdSet(args)
     local key = args[1]
     local value = args[2]
@@ -500,6 +584,10 @@ local function dispatchCommand(cmd, args)
     elseif cmd == "set-panel" then cmdSetPanel(args)
     elseif cmd == "reconnect" then cmdReconnect()
     elseif cmd == "update-client" then cmdUpdateClient(args)
+    elseif cmd == "pending" then cmdPending()
+    elseif cmd == "approve" then cmdApprove(args)
+    elseif cmd == "revoke" then cmdRevoke(args)
+    elseif cmd == "cards" then cmdCards()
     elseif cmd == "set" then cmdSet(args)
     elseif cmd == "get" then cmdGet(args)
     elseif cmd == "update" then cmdUpdate(args[1] == "force")
