@@ -135,15 +135,27 @@ end
 
 -- Screens --
 
-local function drawIdle()
+local function drawIdle(cfg)
     _buttons = {}
     mClear()
     local w, h = _mon.getSize()
+
     if not vlib.isConnected() then
         mCenter(math.floor(h / 2), "DISCONNECTED", colors.red, colors.black)
-    else
-        mCenter(math.floor(h / 2), "Insert card...", colors.yellow, colors.black)
+        return
     end
+
+    local label = "Insert card..."
+    if cfg.mode == "items" then
+        label = cfg.label or "Storage Interface"
+    elseif cfg.mode == "door" then
+        label = cfg.label or (cfg.zone or "Access Point")
+    elseif cfg.mode == "both" then
+        label = cfg.label or "Terminal"
+    end
+
+    mCenter(math.floor(h / 2) - 1, label, colors.cyan, colors.black)
+    mCenter(math.floor(h / 2) + 1, "Insert card...", colors.yellow, colors.black)
 end
 
 local function drawCardPreview(response)
@@ -211,6 +223,12 @@ local function setup()
         if choice == 1 then cfg.mode = "items"
         elseif choice == 2 then cfg.mode = "door"
         else cfg.mode = "both" end
+    end
+
+    if not cfg.label then
+        write("Display label (e.g. Storage Interface): ")
+        local label = read()
+        if label and label ~= "" then cfg.label = label end
     end
 
     if not cfg.driveName then
@@ -456,7 +474,7 @@ local function mainLoop()
     end
 
     while true do
-        drawIdle()
+        drawIdle(cfg)
         local heartbeatTimer = os.startTimer(10)
         local pollTimer = os.startTimer(2)
 
@@ -469,7 +487,7 @@ local function mainLoop()
                 break
             elseif event == "timer" and p1 == heartbeatTimer then
                 vlib.heartbeat()
-                drawIdle()
+                drawIdle(cfg)
                 heartbeatTimer = os.startTimer(10)
             elseif event == "timer" and p1 == pollTimer then
                 loadFromBarrel(cfg)
