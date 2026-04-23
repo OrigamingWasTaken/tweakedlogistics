@@ -263,13 +263,18 @@ local function mainLoop()
 
     while true do
         drawIdle(cfg)
+        local heartbeatTimer = os.startTimer(30)
 
         while true do
-            local event, p1 = os.pullEvent()
-            vlib.checkEvent(event, p1)
+            local event, p1, p2 = os.pullEvent()
+            vlib.checkEvent(event, p1, p2)
 
             if event == "disk" then
                 break
+            elseif event == "timer" and p1 == heartbeatTimer then
+                vlib.heartbeat()
+                drawIdle(cfg)
+                heartbeatTimer = os.startTimer(30)
             end
         end
 
