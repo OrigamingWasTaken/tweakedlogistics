@@ -18,6 +18,58 @@ local function findDiskDrive()
     return nil
 end
 
+local function loadFromBarrel(cfg)
+    if not cfg.inputBarrel or not cfg.driveInput then return false end
+    local ok, contents = pcall(peripheral.call, cfg.inputBarrel, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            local ok2, moved = pcall(
+                peripheral.call, cfg.inputBarrel, "pushItems",
+                cfg.driveInput, slot, 1
+            )
+            if ok2 and moved and moved > 0 then
+                sleep(1)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function ejectToBarrel(cfg)
+    if not cfg.driveOutput or not cfg.outputBarrel or not cfg.lockSide then return false end
+    redstone.setOutput(cfg.lockSide, false)
+    sleep(0.5)
+    disk.eject(cfg.driveName or findDiskDrive())
+    sleep(0.5)
+    redstone.setOutput(cfg.lockSide, true)
+    sleep(0.3)
+    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.outputBarrel, slot)
+        end
+    end
+    return true
+end
+
+local function ejectToReserve(cfg)
+    if not cfg.driveOutput or not cfg.reserveChest or not cfg.lockSide then return false end
+    redstone.setOutput(cfg.lockSide, false)
+    sleep(0.5)
+    disk.eject(cfg.driveName or findDiskDrive())
+    sleep(0.5)
+    redstone.setOutput(cfg.lockSide, true)
+    sleep(0.3)
+    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
+        end
+    end
+    return true
+end
+
 local function setup()
     vlib.loadConfig(CONFIG_PATH)
     if not vlib.setupScreen("Terminal") then return false end
@@ -55,27 +107,54 @@ local function setup()
         end
     end
 
-    if (cfg.mode == "items" or cfg.mode == "both") and not cfg.reserveChest then
-        print("")
-        term.setTextColor(colors.yellow)
-        print("Select reserve chest for used cards:")
-        print("(blank to eject instead)")
-        term.setTextColor(colors.white)
-        local chest = vlib.pickInventory()
-        if chest then
-            cfg.reserveChest = chest
+    if (cfg.mode == "items" or cfg.mode == "both") then
+        if not cfg.inputBarrel then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Select input barrel (player drops card):")
+            term.setTextColor(colors.white)
+            cfg.inputBarrel = vlib.pickInventory()
         end
-    end
 
-    if (cfg.mode == "items" or cfg.mode == "both") and cfg.reserveChest and not cfg.driveOutput then
-        print("")
-        term.setTextColor(colors.yellow)
-        print("Select drive output (hopper below drive):")
-        term.setTextColor(colors.white)
-        local inv = vlib.pickInventory()
-        if inv then
-            cfg.driveOutput = inv
+        if not cfg.outputBarrel then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Select output barrel (player picks up):")
+            term.setTextColor(colors.white)
+            cfg.outputBarrel = vlib.pickInventory()
         end
+
+        if not cfg.reserveChest then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Select reserve chest (used cards):")
+            term.setTextColor(colors.white)
+            cfg.reserveChest = vlib.pickInventory()
+        end
+
+        if not cfg.driveInput then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Select drive input (hopper above):")
+            term.setTextColor(colors.white)
+            cfg.driveInput = vlib.pickInventory()
+        end
+
+        if not cfg.driveOutput then
+            print("")
+            term.setTextColor(colors.yellow)
+            print("Select drive output (hopper below):")
+            term.setTextColor(colors.white)
+            cfg.driveOutput = vlib.pickInventory()
+        end
+
+        if not cfg.lockSide then
+            write("Redstone lock side (back): ")
+            local side = read()
+            cfg.lockSide = (side and side ~= "") and side or "back"
+        end
+
+        redstone.setOutput(cfg.lockSide, true)
     end
 
     if (cfg.mode == "door" or cfg.mode == "both") then
@@ -222,20 +301,9 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
         print("Done!")
         vlib.playSound("success")
 
-        if driveName then
-            print("Reclaiming card...")
-            disk.eject(driveName)
-            sleep(0.5)
-            if cfg.driveOutput and cfg.reserveChest then
-                local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
-                if ok and contents then
-                    for slot, _ in pairs(contents) do
-                        pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
-                    end
-                end
-            end
-        end
-        sleep(2)
+        print("Reclaiming card...")
+        ejectToReserve(cfg)
+        sleep(1)
 
     elseif response.cardType == "balance" then
         term.setTextColor(colors.yellow)
@@ -287,9 +355,9 @@ local function handleRedemptionBalance(cfg, response, diskId, driveName)
         end
 
         print("")
-        term.setTextColor(colors.lightGray)
-        print("Remove your card.")
-        sleep(3)
+        print("Ejecting card...")
+        ejectToBarrel(cfg)
+        sleep(1)
     end
 end
 
@@ -297,9 +365,14 @@ local function mainLoop()
     local cfg = vlib.getConfig()
     local driveName = cfg.driveName or findDiskDrive()
 
+    if cfg.lockSide then
+        redstone.setOutput(cfg.lockSide, true)
+    end
+
     while true do
         drawIdle(cfg)
         local heartbeatTimer = os.startTimer(30)
+        local pollTimer = os.startTimer(2)
 
         while true do
             local event, p1, p2 = os.pullEvent()
@@ -311,6 +384,11 @@ local function mainLoop()
                 vlib.heartbeat()
                 drawIdle(cfg)
                 heartbeatTimer = os.startTimer(30)
+            elseif event == "timer" and p1 == pollTimer then
+                if loadFromBarrel(cfg) then
+                    break
+                end
+                pollTimer = os.startTimer(2)
             end
         end
 
@@ -354,11 +432,7 @@ local function mainLoop()
         end
 
         while driveName and disk.isPresent(driveName) do
-            term.clear()
-            term.setCursorPos(1, 1)
-            term.setTextColor(colors.lightGray)
-            print("Remove your card...")
-            sleep(1)
+            sleep(0.5)
         end
     end
 end

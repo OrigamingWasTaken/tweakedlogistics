@@ -38,10 +38,23 @@ local function setup()
         term.setTextColor(colors.yellow)
         print("Select reserve chest (blank floppies):")
         term.setTextColor(colors.white)
-        local chest = vlib.pickInventory()
-        if chest then
-            cfg.reserveChest = chest
-        end
+        cfg.reserveChest = vlib.pickInventory()
+    end
+
+    if not cfg.inputBarrel then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select input barrel (admin drops cards):")
+        term.setTextColor(colors.white)
+        cfg.inputBarrel = vlib.pickInventory()
+    end
+
+    if not cfg.outputBarrel then
+        print("")
+        term.setTextColor(colors.yellow)
+        print("Select output barrel (admin picks up):")
+        term.setTextColor(colors.white)
+        cfg.outputBarrel = vlib.pickInventory()
     end
 
     if not cfg.driveInput then
@@ -49,22 +62,24 @@ local function setup()
         term.setTextColor(colors.yellow)
         print("Select drive input (hopper above drive):")
         term.setTextColor(colors.white)
-        local inv = vlib.pickInventory()
-        if inv then
-            cfg.driveInput = inv
-        end
+        cfg.driveInput = vlib.pickInventory()
     end
 
     if not cfg.driveOutput then
         print("")
         term.setTextColor(colors.yellow)
-        print("Select drive output (hopper below drive):")
+        print("Select drive output (hopper below):")
         term.setTextColor(colors.white)
-        local inv = vlib.pickInventory()
-        if inv then
-            cfg.driveOutput = inv
-        end
+        cfg.driveOutput = vlib.pickInventory()
     end
+
+    if not cfg.lockSide then
+        write("Redstone lock side (back): ")
+        local side = read()
+        cfg.lockSide = (side and side ~= "") and side or "back"
+    end
+
+    redstone.setOutput(cfg.lockSide, true)
 
     vlib.saveConfig()
 
@@ -79,6 +94,76 @@ local function setup()
     end
 
     sleep(1)
+    return true
+end
+
+local function loadFromBarrel(cfg)
+    if not cfg.inputBarrel or not cfg.driveInput then return false end
+    local ok, contents = pcall(peripheral.call, cfg.inputBarrel, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            local ok2, moved = pcall(
+                peripheral.call, cfg.inputBarrel, "pushItems",
+                cfg.driveInput, slot, 1
+            )
+            if ok2 and moved and moved > 0 then
+                sleep(1)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function loadFromReserve(cfg)
+    if not cfg.reserveChest or not cfg.driveInput then return false end
+    local ok, contents = pcall(peripheral.call, cfg.reserveChest, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            local ok2, moved = pcall(
+                peripheral.call, cfg.reserveChest, "pushItems",
+                cfg.driveInput, slot, 1
+            )
+            if ok2 and moved and moved > 0 then
+                sleep(1)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function ejectToBarrel(cfg)
+    if not cfg.driveOutput or not cfg.outputBarrel then return false end
+    redstone.setOutput(cfg.lockSide, false)
+    sleep(0.5)
+    disk.eject(cfg.driveName)
+    sleep(0.5)
+    redstone.setOutput(cfg.lockSide, true)
+    sleep(0.3)
+    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.outputBarrel, slot)
+        end
+    end
+    return true
+end
+
+local function ejectToReserve(cfg)
+    if not cfg.driveOutput or not cfg.reserveChest then return false end
+    redstone.setOutput(cfg.lockSide, false)
+    sleep(0.5)
+    disk.eject(cfg.driveName)
+    sleep(0.5)
+    redstone.setOutput(cfg.lockSide, true)
+    sleep(0.3)
+    local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
+    if ok and contents then
+        for slot, _ in pairs(contents) do
+            pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
+        end
+    end
     return true
 end
 
@@ -174,19 +259,14 @@ local function createCard(cfg)
     print("")
     local driveName = cfg.driveName
 
-    if not disk.isPresent(driveName) and cfg.driveInput and cfg.reserveChest then
+    if not disk.isPresent(driveName) then
         print("Loading floppy from reserve...")
-        local ok, contents = pcall(peripheral.call, cfg.reserveChest, "list")
-        if ok and contents then
-            for slot, _ in pairs(contents) do
-                local ok2, moved = pcall(
-                    peripheral.call, cfg.reserveChest, "pushItems",
-                    cfg.driveInput, slot, 1
-                )
-                if ok2 and moved and moved > 0 then break end
-            end
+        if not loadFromReserve(cfg) then
+            term.setTextColor(colors.red)
+            print("No floppies in reserve!")
+            sleep(2)
+            return
         end
-        sleep(1)
     end
 
     if not disk.isPresent(driveName) then
@@ -216,10 +296,8 @@ local function createCard(cfg)
     print('Label: "' .. cardData.label .. '"')
     vlib.playSound("success")
 
-    print("")
-    term.setTextColor(colors.lightGray)
-    print("Remove the card.")
-    while disk.isPresent(driveName) do sleep(0.5) end
+    print("Ejecting to output...")
+    ejectToBarrel(cfg)
 end
 
 local function rechargeCard(cfg)
@@ -230,7 +308,12 @@ local function rechargeCard(cfg)
     print("")
 
     local driveName = cfg.driveName
-    waitForDisk(driveName)
+    if not disk.isPresent(driveName) then
+        print("Insert card into input barrel...")
+        if not loadFromBarrel(cfg) then
+            waitForDisk(driveName)
+        end
+    end
 
     local diskId = disk.getID(driveName)
     if not diskId then
@@ -297,10 +380,8 @@ local function rechargeCard(cfg)
         end
     end
 
-    print("")
-    term.setTextColor(colors.lightGray)
-    print("Remove the card.")
-    while disk.isPresent(driveName) do sleep(0.5) end
+    print("Ejecting to output...")
+    ejectToBarrel(cfg)
 end
 
 local function viewCard(cfg)
@@ -311,7 +392,12 @@ local function viewCard(cfg)
     print("")
 
     local driveName = cfg.driveName
-    waitForDisk(driveName)
+    if not disk.isPresent(driveName) then
+        print("Insert card into input barrel...")
+        if not loadFromBarrel(cfg) then
+            waitForDisk(driveName)
+        end
+    end
 
     local diskId = disk.getID(driveName)
     if not diskId then
@@ -356,8 +442,8 @@ local function viewCard(cfg)
     print("Press any key...")
     os.pullEvent("key")
 
-    print("Remove the card.")
-    while disk.isPresent(driveName) do sleep(0.5) end
+    print("Ejecting to output...")
+    ejectToBarrel(cfg)
 end
 
 local function revokeCard(cfg)
@@ -368,7 +454,12 @@ local function revokeCard(cfg)
     print("")
 
     local driveName = cfg.driveName
-    waitForDisk(driveName)
+    if not disk.isPresent(driveName) then
+        print("Insert card into input barrel...")
+        if not loadFromBarrel(cfg) then
+            waitForDisk(driveName)
+        end
+    end
 
     local diskId = disk.getID(driveName)
     if not diskId then
@@ -402,14 +493,7 @@ local function revokeCard(cfg)
 
     if cfg.driveOutput and cfg.reserveChest then
         print("Returning floppy to reserve...")
-        disk.eject(driveName)
-        sleep(0.5)
-        local ok, contents = pcall(peripheral.call, cfg.driveOutput, "list")
-        if ok and contents then
-            for slot, _ in pairs(contents) do
-                pcall(peripheral.call, cfg.driveOutput, "pushItems", cfg.reserveChest, slot)
-            end
-        end
+        ejectToReserve(cfg)
     else
         print("")
         term.setTextColor(colors.lightGray)
