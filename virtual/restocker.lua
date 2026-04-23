@@ -89,20 +89,17 @@ local function setup()
     if not cfg.slots then
         cfg.slots = {}
         print("")
-        term.setTextColor(colors.yellow)
-        print("Add items to restock (blank to finish):")
+        write("Item to restock: ")
+        local item = read()
+        if not item or item == "" then return false end
+        write("Target count: ")
+        local count = tonumber(read())
+        if not count then return false end
+        table.insert(cfg.slots, { item = item, target = count })
+        print("")
+        term.setTextColor(colors.lightGray)
+        print("Edit " .. CONFIG_PATH .. " to add more items.")
         term.setTextColor(colors.white)
-        local i = 0
-        while true do
-            i = i + 1
-            write("Item " .. i .. ": ")
-            local item = read()
-            if not item or item == "" then break end
-            write("Target count: ")
-            local count = tonumber(read())
-            if not count then break end
-            table.insert(cfg.slots, { item = item, target = count })
-        end
     end
 
     if #cfg.slots == 0 then
