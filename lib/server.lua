@@ -11,13 +11,16 @@ local _nicknames = nil
 local _config = nil
 local _clients = {}
 local _modemSide = nil
+local _pending = {}
+local _cards = nil
 
-function server.init(core, storage, logistics, crafting, nicknames, config)
+function server.init(core, storage, logistics, crafting, nicknames, cards, config)
     _core = core
     _storage = storage
     _logistics = logistics
     _crafting = crafting
     _nicknames = nicknames
+    _cards = cards
     _config = config
 
     _core.event.on("storage:changed", function(delta)
@@ -62,6 +65,27 @@ local function findItem(itemName)
 end
 
 local function handleRegister(senderId, msg)
+    local whitelist = _config.get("whitelist") or {}
+    local isApproved = whitelist[tostring(senderId)]
+
+    if isApproved == nil and next(whitelist) == nil then
+        isApproved = true
+        whitelist[tostring(senderId)] = true
+        _config.set("whitelist", whitelist)
+    end
+
+    if not isApproved then
+        _pending[senderId] = {
+            blockType = msg.blockType,
+            computerId = msg.computerId,
+            config = msg.config,
+            version = msg.version,
+            requestedAt = os.epoch("utc"),
+        }
+        rednet.send(senderId, { type = "pending" })
+        return
+    end
+
     local existing = _clients[senderId]
     _clients[senderId] = {
         blockType = msg.blockType,
@@ -190,6 +214,102 @@ local function handleLocateItems(senderId, msg)
     })
 end
 
+local function handleCardScan(senderId, msg)
+    if not _cards then return end
+    local card = _cards.get(msg.diskId)
+    if not card then
+        rednet.send(senderId, { type = "card_denied", reason = "Unknown card" })
+        return
+    end
+
+    if card.type == "access" then
+        local client = _clients[senderId]
+        local zone = client and client.config and client.config.zone
+        local granted = false
+        if zone and card.zones then
+            for _, z in ipairs(card.zones) do
+                if z == zone then granted = true break end
+            end
+        end
+        rednet.send(senderId, {
+            type = "card_access",
+            granted = granted,
+            duration = 3,
+            label = card.label,
+        })
+
+    elseif card.type == "redemption" or card.type == "balance" then
+        rednet.send(senderId, {
+            type = "card_data",
+            cardType = card.type,
+            label = card.label,
+            items = card.items,
+            rechargeable = card.rechargeable,
+        })
+    end
+end
+
+local function handleCardWithdraw(senderId, msg)
+    if not _cards then return end
+    local card = _cards.get(msg.diskId)
+    if not card then
+        rednet.send(senderId, { type = "card_denied", reason = "Unknown card" })
+        return
+    end
+
+    local client = _clients[senderId]
+    local outputChest = client and client.config and client.config.outputChest
+
+    local actual = _cards.withdraw(msg.diskId, msg.item, msg.count)
+    if actual > 0 and outputChest then
+        local items = _storage.getItems()
+        for _, it in ipairs(items) do
+            if _core.matchesItem(it.name, msg.item) then
+                _storage.extract(it.key, actual, outputChest)
+                break
+            end
+        end
+    end
+
+    local updatedCard = _cards.get(msg.diskId)
+    local isEmpty = true
+    if updatedCard and updatedCard.items then
+        for _, v in pairs(updatedCard.items) do
+            if v > 0 then isEmpty = false break end
+        end
+    end
+
+    if card.type == "redemption" and isEmpty then
+        _cards.delete(msg.diskId)
+    end
+
+    rednet.send(senderId, {
+        type = "card_delivered",
+        item = msg.item,
+        count = actual,
+        remaining = updatedCard and updatedCard.items or {},
+        reclaim = card.type == "redemption" and isEmpty,
+    })
+end
+
+local function handleCardCreate(senderId, msg)
+    if not _cards then return end
+    _cards.create(msg.diskId, msg.cardData)
+    rednet.send(senderId, { type = "card_created", diskId = msg.diskId })
+end
+
+local function handleCardRecharge(senderId, msg)
+    if not _cards then return end
+    local ok = _cards.recharge(msg.diskId, msg.item, msg.count)
+    rednet.send(senderId, { type = "card_recharged", success = ok })
+end
+
+local function handleCardRevoke(senderId, msg)
+    if not _cards then return end
+    _cards.delete(msg.diskId)
+    rednet.send(senderId, { type = "card_revoked", diskId = msg.diskId })
+end
+
 local function handleMessage(senderId, msg)
     if type(msg) ~= "table" or not msg.type then return end
 
@@ -205,6 +325,16 @@ local function handleMessage(senderId, msg)
         handleLocateItems(senderId, msg)
     elseif msg.type == "craft_request" then
         handleCraftRequest(senderId, msg)
+    elseif msg.type == "card_scan" then
+        handleCardScan(senderId, msg)
+    elseif msg.type == "card_withdraw" then
+        handleCardWithdraw(senderId, msg)
+    elseif msg.type == "card_create" then
+        handleCardCreate(senderId, msg)
+    elseif msg.type == "card_recharge" then
+        handleCardRecharge(senderId, msg)
+    elseif msg.type == "card_revoke" then
+        handleCardRevoke(senderId, msg)
     end
 end
 
@@ -227,6 +357,42 @@ end
 
 function server.updateClient(clientId)
     rednet.send(clientId, { type = "do_update" })
+end
+
+function server.getPending()
+    local list = {}
+    for id, info in pairs(_pending) do
+        table.insert(list, {
+            id = id,
+            blockType = info.blockType,
+            requestedAt = info.requestedAt,
+        })
+    end
+    return list
+end
+
+function server.approve(clientId)
+    local whitelist = _config.get("whitelist") or {}
+    whitelist[tostring(clientId)] = true
+    _config.set("whitelist", whitelist)
+
+    if _pending[clientId] then
+        _pending[clientId] = nil
+    end
+
+    rednet.send(clientId, {
+        type = "config_ack",
+        serverId = os.getComputerID(),
+    })
+end
+
+function server.revoke(clientId)
+    local whitelist = _config.get("whitelist") or {}
+    whitelist[tostring(clientId)] = nil
+    _config.set("whitelist", whitelist)
+    _clients[clientId] = nil
+
+    rednet.send(clientId, { type = "revoked" })
 end
 
 function server.getClients()
