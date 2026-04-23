@@ -22,6 +22,11 @@ function storage.init(core, config)
     for _, name in ipairs(saved) do
         _excludedInvs[name] = true
     end
+
+    local inputs = _config.get("storage.inputs") or {}
+    for _, name in ipairs(inputs) do
+        _excludedInvs[name] = true
+    end
 end
 
 function storage.excludeInventory(name)
@@ -300,9 +305,43 @@ function storage.getStatus()
     }
 end
 
+function storage.absorb()
+    local inputs = _config.get("storage.inputs") or {}
+    local destinations = {}
+    local names = peripheral.getNames()
+    for _, name in ipairs(names) do
+        if peripheral.hasType(name, "inventory") and not _excludedInvs[name] then
+            table.insert(destinations, name)
+        end
+    end
+
+    for _, inputName in ipairs(inputs) do
+        local ok, contents = pcall(peripheral.call, inputName, "list")
+        if ok and contents then
+            for slot, slotData in pairs(contents) do
+                local moved = 0
+                for _, destInv in ipairs(destinations) do
+                    local ok2, transferred = pcall(
+                        peripheral.call, destInv, "pullItems",
+                        inputName, slot
+                    )
+                    if ok2 and transferred and transferred > 0 then
+                        moved = moved + transferred
+                        break
+                    end
+                end
+                if moved > 0 then
+                    storage.logActivity("add", (slotData.name:match(":(.+)") or slotData.name):gsub("_", " ") .. " (input)", moved)
+                end
+            end
+        end
+    end
+end
+
 function storage.loop()
     while true do
         storage.scan()
+        storage.absorb()
         sleep(_config.get("storage.scanInterval") or 5)
     end
 end
