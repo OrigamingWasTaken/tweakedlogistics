@@ -505,7 +505,7 @@ end
 local function mainLoop()
     local cfg = vlib.getConfig()
 
-    local heartbeatTimer = os.startTimer(30)
+    local heartbeatTimer = os.startTimer(10)
 
     while true do
         drawMenu()
@@ -515,7 +515,7 @@ local function mainLoop()
 
         if event == "timer" and p1 == heartbeatTimer then
             vlib.heartbeat()
-            heartbeatTimer = os.startTimer(30)
+            heartbeatTimer = os.startTimer(10)
         elseif event == "key" then
             if p1 == keys.one then
                 createCard(cfg)

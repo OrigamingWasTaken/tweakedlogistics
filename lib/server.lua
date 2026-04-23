@@ -448,7 +448,7 @@ function server.getClients()
             firstSeen = client.firstSeen,
             requestCount = client.requestCount or 0,
             itemsMoved = client.itemsMoved or 0,
-            online = elapsed < 60000,
+            online = elapsed < 120000,
         })
     end
     return list

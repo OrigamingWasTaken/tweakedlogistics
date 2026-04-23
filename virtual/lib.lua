@@ -96,6 +96,10 @@ function vlib.checkEvent(event, senderId, message)
         if senderId == _serverId then
             if message.type == "do_update" then
                 handleUpdate()
+            elseif message.type == "config_ack" then
+                _connected = true
+                _lastServerResponse = os.epoch("utc")
+                _alarmActive = false
             elseif message.type == "reconnect" then
                 _connected = true
                 _lastServerResponse = os.epoch("utc")
@@ -206,18 +210,11 @@ function vlib.heartbeat()
         status = _clientStatus,
     })
 
-    local reply = vlib.receive(2)
-    if reply and reply.type == "config_ack" then
-        _connected = true
-        _lastServerResponse = os.epoch("utc")
-        _alarmActive = false
-    else
-        local elapsed = os.epoch("utc") - _lastServerResponse
-        if elapsed > 30000 then
-            _connected = false
-            if not _alarmActive and _speaker then
-                _alarmActive = true
-            end
+    local elapsed = os.epoch("utc") - _lastServerResponse
+    if elapsed > 120000 then
+        _connected = false
+        if not _alarmActive and _speaker then
+            _alarmActive = true
         end
     end
 end

@@ -400,7 +400,7 @@ local function mainLoop()
 
     while true do
         drawIdle(cfg)
-        local heartbeatTimer = os.startTimer(30)
+        local heartbeatTimer = os.startTimer(10)
         local pollTimer = os.startTimer(2)
 
         while true do
@@ -412,7 +412,7 @@ local function mainLoop()
             elseif event == "timer" and p1 == heartbeatTimer then
                 vlib.heartbeat()
                 drawIdle(cfg)
-                heartbeatTimer = os.startTimer(30)
+                heartbeatTimer = os.startTimer(10)
             elseif event == "timer" and p1 == pollTimer then
                 if loadFromBarrel(cfg) then
                     break
